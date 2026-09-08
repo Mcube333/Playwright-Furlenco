@@ -132,9 +132,6 @@ Non-critical failures stay visible in the report for triage without blocking eve
 - **Mobile (Android/iOS/MWeb)**: Playwright covers Web + Mobile Web (via device emulation in
   `BrowserContext`) but not native Android/iOS — that needs Appium as a separate module if native
   app coverage is required.
-- **Chatbot (Haptik) testing**: likely needs its own API test package hitting the chatbot's
-  webhook/callback endpoints, plus conversation-state assertions via `DBUtils` or a dedicated
-  conversation-log API.
 - **Contract/schema drift**: consider wiring `assertMatchesSchema` checks into the CI pipeline
   as a required gate for any endpoint your mobile apps depend on, so backend changes that break
   the contract fail fast in CI rather than surfacing as a mobile app crash.
