@@ -1,0 +1,98 @@
+name: Automation Regression
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "qa"
+        type: choice
+        options:
+          - qa
+          - staging
+          - prod
+      suite:
+        description: "Suite to run"
+        required: true
+        default: "regression-suite.xml"
+        type: choice
+        options:
+          - smoke-suite.xml
+          - regression-suite.xml
+          - api-suite.xml
+
+jobs:
+  run-tests:
+    runs-on: ubuntu-latest
+    env:
+      TARGET_ENV: ${{ github.event.inputs.environment || 'qa' }}
+      SUITE_FILE: ${{ github.event.inputs.suite || 'smoke-suite.xml' }}
+      # Secrets injected here — never committed to properties files.
+      API_TOKEN: ${{ secrets.API_TOKEN }}
+      DB_HOST: ${{ secrets.DB_HOST }}
+      DB_PORT: ${{ secrets.DB_PORT }}
+      DB_NAME: ${{ secrets.DB_NAME }}
+      DB_USER: ${{ secrets.DB_USER }}
+      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Install Playwright browsers
+        run: mvn -B exec:java@install-browsers
+
+      - name: Run test suite
+        run: >
+          mvn -B test
+          -Denv=${{ env.TARGET_ENV }}
+          -DsuiteXmlFile=src/test/resources/${{ env.SUITE_FILE }}
+        continue-on-error: true
+        id: run_tests
+
+      - name: Generate Allure report
+        if: always()
+        run: mvn -B io.qameta.allure:allure-maven:report
+
+      - name: Upload Allure report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-report
+          path: target/site/allure-maven-plugin
+          retention-days: 30
+
+      - name: Upload logs artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: logs/
+          retention-days: 14
+
+      # Trade-off: we don't hard-fail the whole job on any failure (continue-on-error above)
+      # so the Allure report/logs still get published even on red runs. Instead, this final
+      # step fails the JOB specifically when a payment-critical test failed, since that's the
+      # class of failure that should block a merge/deploy. Other regression failures are
+      # visible in the report but don't block — triage happens via Allure, not a red pipeline
+      # for every flaky non-critical case.
+      - name: Fail build if payment-critical tests failed
+        if: always()
+        run: |
+          if grep -rl "payment-critical" target/surefire-reports/*.xml 2>/dev/null | xargs grep -l "FAILED" 2>/dev/null; then
+            echo "Payment-critical test(s) failed — blocking the build."
+            exit 1
+          fi
+          echo "No payment-critical failures detected."

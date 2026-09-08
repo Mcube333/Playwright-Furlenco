@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<suite name="Furlenco Web Automation Suite" parallel="none">
+
+    <listeners>
+        <listener class-name="com.framework.listeners.TestListener"/>
+        <listener class-name="com.framework.listeners.RetryTransformer"/>
+    </listeners>
+
+    <test name="Furlenco Web Flows">
+        <classes>
+            <class name="com.tests.web.furlenco.FurlencoHomePageTest"/>
+            <class name="com.tests.web.furlenco.FurlencoSearchAndBrowseTest"/>
+            <class name="com.tests.web.furlenco.FurlencoCartFlowTest"/>
+        </classes>
+    </test>
+
+</suite>

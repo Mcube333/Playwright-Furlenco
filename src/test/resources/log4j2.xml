@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+    <Properties>
+        <Property name="LOG_PATTERN">%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n</Property>
+    </Properties>
+
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="${LOG_PATTERN}"/>
+        </Console>
+
+        <!-- One log file per JVM run (per Maven/CI invocation), timestamped -->
+        <File name="FileLog" fileName="logs/test-run-${date:yyyy-MM-dd-HH-mm-ss}.log">
+            <PatternLayout pattern="${LOG_PATTERN}"/>
+        </File>
+    </Appenders>
+
+    <Loggers>
+        <Logger name="com.framework" level="INFO" additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="FileLog"/>
+        </Logger>
+        <Logger name="com.tests" level="INFO" additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="FileLog"/>
+        </Logger>
+
+        <Root level="WARN">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="FileLog"/>
+        </Root>
+    </Loggers>
+</Configuration>
