@@ -4,28 +4,37 @@ import com.framework.ai.testgeneration.GeneratedTestCase;
 import java.util.Objects;
 
 /**
- * Dedicated prompt template for generating Playwright Java TestNG test code.
+ * Hardened prompt engineering template enforcing strict evidence-based generation.
+ *
+ * Rules:
+ * - AI MUST NEVER present an invented locator, method, event, or API as verified fact.
+ * - If actual DOM evidence is absent, locators MUST be prefixed with '// TODO: VERIFY LOCATOR AGAINST QA/STAGING DOM'
+ *   and categorized as UNVERIFIED.
+ * - If analytics details are not explicitly provided in the requirement, mark as MISSING_EVIDENCE.
+ * - Prefer an incomplete but honest draft over a complete hallucinated draft.
  */
 public final class TestCodeGenerationPrompt {
 
     public static final String SYSTEM_INSTRUCTION =
             "You are a Principal SDET and Playwright Java Automation Architect.\n"
-            + "Your task is to generate clean, maintainable, production-ready DRAFT TestNG test code and Page Object methods in Java for Playwright.\n\n"
-            + "FRAMEWORK ARCHITECTURE & CONVENTIONS:\n"
-            + "- Base class: extends com.tests.base.BaseWebTest (provides protected Page page, setup and teardown)\n"
+            + "Your task is to generate honest, maintainable, production-ready DRAFT TestNG test code and Page Object methods in Java for Playwright.\n\n"
+            + "CRITICAL EVIDENCE & ANTI-HALLUCINATION RULES:\n"
+            + "1. NEVER present an invented locator, Page Object method, analytics event, or API as verified fact.\n"
+            + "2. If DOM evidence is not supplied, you MUST classify proposed locators as 'UNVERIFIED' and prefix them in code with:\n"
+            + "   '// TODO: VERIFY LOCATOR AGAINST QA/STAGING DOM'\n"
+            + "3. ANALYTICS RULE: Never invent analytics events (e.g. 'cart_updated') or attributes unless explicitly given in the requirement.\n"
+            + "   If missing, classify as 'MISSING' with advice: 'Confirm expected analytics event and attributes'.\n"
+            + "4. REUSE EXISTING PAGE OBJECTS: If existing Page Objects (e.g. FurlencoHomePage, FurlencoCartDrawer) offer methods, use them.\n"
+            + "   If missing, generate as a separate draft suggestion, never pretending it exists.\n"
+            + "5. Prefer an incomplete, honest draft over a complete hallucinated draft.\n\n"
+            + "FRAMEWORK ARCHITECTURE & CODING RULES:\n"
+            + "- Base class: extends com.tests.base.BaseWebTest\n"
             + "- Assertions: AssertJ (org.assertj.core.api.Assertions.assertThat)\n"
             + "- Annotations: TestNG (@Test, @BeforeMethod) and Allure (@Epic, @Feature, @Severity, @Description, @Step)\n"
             + "- Logging: Log4j2 (org.apache.logging.log4j.LogManager, Logger)\n"
-            + "- Config: com.framework.config.ConfigManager.getInstance()\n\n"
-            + "STRICT CODING RULES:\n"
-            + "1. Header: Include '// AI-GENERATED DRAFT\\n// HUMAN REVIEW REQUIRED\\n// DO NOT MERGE WITHOUT QA REVIEW' at the top of every generated file.\n"
-            + "2. NEVER use Thread.sleep(). Rely on Playwright auto-waiting, locator assertions, or page.waitForLoadState().\n"
-            + "3. LOCATOR HIERARCHY: getByTestId > getByRole > accessible name > stable CSS. Avoid positional (.nth()) or fragile XPath.\n"
-            + "4. If a reliable locator cannot be deduced from evidence, output: '// TODO: LOCATOR REQUIRED - explain missing info'. DO NOT invent selectors.\n"
-            + "5. REUSE existing Page Objects if applicable (e.g. FurlencoHomePage, FurlencoCartDrawer, FurlencoSearchResultsPage). If a new method is required, generate it as a draft suggestion separately.\n"
-            + "6. TEST DATA: Use safe dummy placeholders (e.g. 'TEST_USER', 'test@example.com'). Never use real secrets or PII. If unknown, output '// TODO: TEST DATA REQUIRED'.\n"
-            + "7. ASSERTIONS: Use meaningful, high-value assertions checking expected behavior from the test case. Do not use trivial assertTrue(page != null).\n"
-            + "8. Return your output STRICTLY as a valid JSON object matching the requested schema. No markdown code blocks like ```json ... ```.";
+            + "- NEVER use Thread.sleep(). Rely on Playwright auto-waiting.\n"
+            + "- Top header: '// AI-GENERATED DRAFT\\n// HUMAN REVIEW REQUIRED\\n// DO NOT MERGE WITHOUT QA REVIEW'\n"
+            + "- Return strictly raw JSON matching the requested schema. No markdown code blocks.";
 
     private TestCodeGenerationPrompt() {
     }
@@ -37,7 +46,7 @@ public final class TestCodeGenerationPrompt {
         Objects.requireNonNull(testCase, "GeneratedTestCase must not be null");
 
         StringBuilder sb = new StringBuilder();
-        sb.append("=== GENERATE PLAYWRIGHT JAVA TEST CODE FOR THE FOLLOWING TEST CASE ===\n\n");
+        sb.append("=== GENERATE PLAYWRIGHT JAVA TEST CODE (EVIDENCE-HARDENED) ===\n\n");
         sb.append("Test Case ID: ").append(testCase.getTestCaseId()).append("\n");
         sb.append("Module: ").append(testCase.getModule()).append("\n");
         sb.append("Scenario: ").append(testCase.getScenario()).append("\n");
@@ -80,18 +89,23 @@ public final class TestCodeGenerationPrompt {
         sb.append("\n");
 
         sb.append("=== INSTRUCTIONS ===\n");
-        sb.append("Generate a draft @Test class and any required Page Object methods as a JSON object with this exact structure:\n");
+        sb.append("Generate a draft @Test class and Page Object suggestions. Every proposed locator or event MUST have an evidence classification.\n");
+        sb.append("Return a JSON object with this exact structure:\n");
         sb.append("{\n");
         sb.append("  \"testClassName\": \"Furlenco" + sanitizeClassName(testCase.getModule()) + "DraftTest\",\n");
         sb.append("  \"packageName\": \"com.tests.web.furlenco.draft\",\n");
         sb.append("  \"testClassCode\": \"// AI-GENERATED DRAFT\\n// HUMAN REVIEW REQUIRED\\n... full Java class ...\",\n");
-        sb.append("  \"pageObjectSuggestions\": [\"// Method suggestion for Page Object...\"],\n");
+        sb.append("  \"pageObjectSuggestions\": [\"// Suggested method for Page Object...\"],\n");
         sb.append("  \"referencedFrameworkClasses\": [\"BaseWebTest\", \"FurlencoHomePage\"],\n");
         sb.append("  \"locatorsUsed\": [\"button[aria-label='Cart']\"],\n");
         sb.append("  \"testDataUsed\": [\"TEST_USER\"],\n");
         sb.append("  \"warnings\": [\"Locator for checkout confirmation needs QA staging validation\"],\n");
         sb.append("  \"assumptions\": [\"User starts from clean session\"],\n");
-        sb.append("  \"analyticsSuggestions\": [\"Verify 'cart_updated' event fired with quantity=2\"]\n");
+        sb.append("  \"analyticsSuggestions\": [\"ANALYTICS VALIDATION DETAILS REQUIRED: Confirm expected event and attributes\"],\n");
+        sb.append("  \"evidenceItems\": [\n");
+        sb.append("    {\"item\": \"Cart button\", \"value\": \"button[aria-label='Cart']\", \"status\": \"UNVERIFIED\", \"source\": \"AI inference\", \"confidence\": 0.4},\n");
+        sb.append("    {\"item\": \"Analytics event\", \"value\": \"None\", \"status\": \"MISSING\", \"source\": \"No requirement evidence\", \"confidence\": 0.0}\n");
+        sb.append("  ]\n");
         sb.append("}\n\n");
         sb.append("Return ONLY the raw JSON object. Do not include markdown code block formatting or explanations outside the JSON.");
 

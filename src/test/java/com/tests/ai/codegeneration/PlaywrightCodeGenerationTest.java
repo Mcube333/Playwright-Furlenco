@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.framework.ai.client.AiClient;
 import com.framework.ai.codegeneration.CodeValidator;
+import com.framework.ai.codegeneration.EvidenceItem;
+import com.framework.ai.codegeneration.EvidenceStatus;
 import com.framework.ai.codegeneration.GeneratedCodeReporter;
 import com.framework.ai.codegeneration.GeneratedTestCodeResponse;
 import com.framework.ai.codegeneration.PlaywrightCodeGenerator;
@@ -79,6 +81,7 @@ public class PlaywrightCodeGenerationTest {
         assertThat(prompt).contains("Item count is 2 and total amount recalculates");
         assertThat(TestCodeGenerationPrompt.SYSTEM_INSTRUCTION).contains("BaseWebTest");
         assertThat(TestCodeGenerationPrompt.SYSTEM_INSTRUCTION).contains("NEVER use Thread.sleep()");
+        assertThat(TestCodeGenerationPrompt.SYSTEM_INSTRUCTION).contains("CRITICAL EVIDENCE & ANTI-HALLUCINATION RULES");
     }
 
     // 2. Successful JSON parsing and validation
@@ -94,7 +97,11 @@ public class PlaywrightCodeGenerationTest {
                 + "  \"testDataUsed\": [\"quantity=2\"],\n"
                 + "  \"warnings\": [\"Check locator on staging\"],\n"
                 + "  \"assumptions\": [\"User is logged in\"],\n"
-                + "  \"analyticsSuggestions\": [\"Verify 'cart_updated' event fired\"]\n"
+                + "  \"analyticsSuggestions\": [\"ANALYTICS VALIDATION DETAILS REQUIRED: Confirm expected event\"],\n"
+                + "  \"evidenceItems\": [\n"
+                + "    {\"item\": \"Quantity plus button\", \"value\": \"button.plus\", \"status\": \"UNVERIFIED\", \"source\": \"AI inference\", \"confidence\": 0.35},\n"
+                + "    {\"item\": \"Analytics event\", \"value\": \"None\", \"status\": \"MISSING\", \"source\": \"No requirement evidence\", \"confidence\": 0.0}\n"
+                + "  ]\n"
                 + "}";
 
         MockAiClient client = new MockAiClient(AiResponse.success(jsonPayload, "mock"), true);
@@ -108,6 +115,7 @@ public class PlaywrightCodeGenerationTest {
         assertThat(response.getTestClassCode()).contains("class FurlencoCartDraftTest");
         assertThat(response.getPageObjectMethods()).hasSize(1);
         assertThat(response.getLocatorsUsed()).contains("button.plus");
+        assertThat(response.getEvidenceItems()).hasSize(2);
 
         // Verify files were exported strictly to target/ai-generated/
         Path reportPath = Paths.get("target", "ai-generated", "generation-report.md");
@@ -182,9 +190,9 @@ public class PlaywrightCodeGenerationTest {
         assertThat(response.getErrorMessage()).contains("Failed to parse");
     }
 
-    // 10. Human review report formatting
+    // 10. Human review report formatting with Evidence Classification
     @Test
-    public void testHumanReviewReportFormatting() {
+    public void testHumanReviewReportFormattingWithEvidence() {
         GeneratedTestCodeResponse response = GeneratedTestCodeResponse.builder()
                 .testClassName("FurlencoCheckoutTest")
                 .packageName("com.tests.web.furlenco.draft")
@@ -194,17 +202,41 @@ public class PlaywrightCodeGenerationTest {
                 .addTestData("coupon=DISCOUNT10")
                 .addWarning("Payment gateway iframe not accessible in mock")
                 .addAssumption("User has verified phone number")
-                .addAnalyticsSuggestion("Verify 'begin_checkout' event sent to Segment")
+                .addAnalyticsSuggestion("ANALYTICS VALIDATION DETAILS REQUIRED: Confirm expected event and attributes")
+                .addEvidenceItem(EvidenceItem.builder()
+                        .item("Checkout button")
+                        .value("button[aria-label='Checkout']")
+                        .status(EvidenceStatus.UNVERIFIED)
+                        .source("AI inference")
+                        .confidence(0.4)
+                        .build())
+                .addEvidenceItem(EvidenceItem.builder()
+                        .item("Analytics event")
+                        .value("None")
+                        .status(EvidenceStatus.MISSING)
+                        .source("No requirement evidence")
+                        .confidence(0.0)
+                        .build())
                 .build();
 
         String md = GeneratedCodeReporter.buildMarkdownReport(response, "Cart Checkout Flow");
         assertThat(md).contains("# AI Test Code Generation & Human Review Report");
+        assertThat(md).contains("## Evidence Classification");
+        assertThat(md).contains("| Checkout button | `button[aria-label='Checkout']` | **UNVERIFIED** | AI inference | 40% |");
+        assertThat(md).contains("| Analytics event | `None` | **MISSING** | No requirement evidence | 0% |");
         assertThat(md).contains("FurlencoCheckoutTest.java");
         assertThat(md).contains("FurlencoCartDrawer");
-        assertThat(md).contains("button[aria-label='Checkout']");
         assertThat(md).contains("DISCOUNT10");
-        assertThat(md).contains("Payment gateway iframe not accessible in mock");
-        assertThat(md).contains("Verify 'begin_checkout' event sent to Segment");
         assertThat(md).contains("Human Review Checklist");
+    }
+
+    // 11. Phase 4.1 Hardening: Evidence status verification
+    @Test
+    public void testEvidenceStatusParsingAndSafety() {
+        assertThat(EvidenceStatus.fromString("VERIFIED")).isEqualTo(EvidenceStatus.VERIFIED);
+        assertThat(EvidenceStatus.fromString("INFERRED")).isEqualTo(EvidenceStatus.INFERRED);
+        assertThat(EvidenceStatus.fromString("UNVERIFIED")).isEqualTo(EvidenceStatus.UNVERIFIED);
+        assertThat(EvidenceStatus.fromString("MISSING")).isEqualTo(EvidenceStatus.MISSING);
+        assertThat(EvidenceStatus.fromString("UNKNOWN_VALUE")).isEqualTo(EvidenceStatus.UNVERIFIED);
     }
 }

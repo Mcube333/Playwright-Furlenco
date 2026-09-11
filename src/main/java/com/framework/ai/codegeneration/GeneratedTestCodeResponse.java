@@ -8,7 +8,8 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Structured LLM response for Java test code generation.
+ * Structured LLM response for Java test code generation,
+ * hardened with evidence-tracking and hallucination classification.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class GeneratedTestCodeResponse {
@@ -25,6 +26,7 @@ public final class GeneratedTestCodeResponse {
     private final List<String> warnings;
     private final List<String> assumptions;
     private final List<String> analyticsSuggestions;
+    private final List<EvidenceItem> evidenceItems;
     private final boolean reviewRequired;
 
     @JsonCreator
@@ -41,6 +43,7 @@ public final class GeneratedTestCodeResponse {
             @JsonProperty("warnings") List<String> warnings,
             @JsonProperty("assumptions") List<String> assumptions,
             @JsonProperty("analyticsSuggestions") List<String> analyticsSuggestions,
+            @JsonProperty("evidenceItems") List<EvidenceItem> evidenceItems,
             @JsonProperty("reviewRequired") Boolean reviewRequired) {
         this.success = success != null ? success : true;
         this.errorMessage = errorMessage != null ? errorMessage : "";
@@ -54,6 +57,7 @@ public final class GeneratedTestCodeResponse {
         this.warnings = warnings != null ? Collections.unmodifiableList(new ArrayList<>(warnings)) : Collections.emptyList();
         this.assumptions = assumptions != null ? Collections.unmodifiableList(new ArrayList<>(assumptions)) : Collections.emptyList();
         this.analyticsSuggestions = analyticsSuggestions != null ? Collections.unmodifiableList(new ArrayList<>(analyticsSuggestions)) : Collections.emptyList();
+        this.evidenceItems = evidenceItems != null ? Collections.unmodifiableList(new ArrayList<>(evidenceItems)) : Collections.emptyList();
         this.reviewRequired = reviewRequired != null ? reviewRequired : true;
     }
 
@@ -105,6 +109,10 @@ public final class GeneratedTestCodeResponse {
         return analyticsSuggestions;
     }
 
+    public List<EvidenceItem> getEvidenceItems() {
+        return evidenceItems;
+    }
+
     public boolean isReviewRequired() {
         return reviewRequired;
     }
@@ -130,6 +138,7 @@ public final class GeneratedTestCodeResponse {
         private List<String> warnings = new ArrayList<>();
         private List<String> assumptions = new ArrayList<>();
         private List<String> analyticsSuggestions = new ArrayList<>();
+        private List<EvidenceItem> evidenceItems = new ArrayList<>();
         private boolean reviewRequired = true;
 
         public Builder success(boolean success) {
@@ -227,6 +236,16 @@ public final class GeneratedTestCodeResponse {
             return this;
         }
 
+        public Builder evidenceItems(List<EvidenceItem> items) {
+            if (items != null) this.evidenceItems = new ArrayList<>(items);
+            return this;
+        }
+
+        public Builder addEvidenceItem(EvidenceItem item) {
+            this.evidenceItems.add(item);
+            return this;
+        }
+
         public Builder reviewRequired(boolean reviewRequired) {
             this.reviewRequired = reviewRequired;
             return this;
@@ -237,7 +256,7 @@ public final class GeneratedTestCodeResponse {
                     success, errorMessage, testClassName, packageName,
                     testClassCode, pageObjectMethods, referencedFrameworkClasses,
                     locatorsUsed, testDataUsed, warnings, assumptions,
-                    analyticsSuggestions, reviewRequired
+                    analyticsSuggestions, evidenceItems, reviewRequired
             );
         }
     }

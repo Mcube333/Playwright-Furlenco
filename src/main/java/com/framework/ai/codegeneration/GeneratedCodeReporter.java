@@ -7,13 +7,14 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Generates human review report (generation-report.md) and writes generated
- * draft Java code files strictly into target/ai-generated/.
- * Guarantees zero code is written to src/.
+ * Generates human review report (generation-report.md) with comprehensive
+ * Evidence Classification (Verified, Inferred, Unverified, Missing)
+ * and writes generated draft Java code files strictly into target/ai-generated/.
  */
 public final class GeneratedCodeReporter {
 
@@ -53,7 +54,7 @@ public final class GeneratedCodeReporter {
                 Files.writeString(poFilePath, poSb.toString(), StandardCharsets.UTF_8);
             }
 
-            // 3. Write generation-report.md
+            // 3. Write generation-report.md with evidence classification
             String reportMarkdown = buildMarkdownReport(response, scenarioTitle);
             Path reportPath = DEFAULT_TARGET_DIR.resolve("generation-report.md").normalize();
             guardAgainstPathTraversal(reportPath);
@@ -80,6 +81,38 @@ public final class GeneratedCodeReporter {
         sb.append("> This code was produced by AI as an unverified draft. It resides exclusively inside `target/ai-generated/`.\n");
         sb.append("> It MUST NOT be moved to `src/test/java` without explicit manual QA review.\n\n");
 
+        // Evidence Classification Section
+        sb.append("## Evidence Classification\n\n");
+        sb.append("Every automation element is classified by evidence to prevent hallucinated details from being accepted as fact:\n\n");
+
+        sb.append("| Item | Value | Status | Source | Confidence |\n");
+        sb.append("|---|---|---|---|---|\n");
+
+        List<EvidenceItem> items = response.getEvidenceItems();
+        if (items != null && !items.isEmpty()) {
+            for (EvidenceItem item : items) {
+                sb.append(String.format("| %s | `%s` | **%s** | %s | %.0f%% |\n",
+                        escapePipes(item.getItem()),
+                        escapePipes(item.getValue()),
+                        item.getStatus().name(),
+                        escapePipes(item.getSource()),
+                        item.getConfidence() * 100
+                ));
+            }
+        } else {
+            // Fallback table from raw locators/data
+            for (String loc : response.getLocatorsUsed()) {
+                sb.append(String.format("| Locator | `%s` | **UNVERIFIED** | AI inference | 30%% |\n", escapePipes(loc)));
+            }
+        }
+        sb.append("\n");
+
+        sb.append("### Legend\n");
+        sb.append("- **VERIFIED**: Supported by actual framework classes, DOM snapshot, or explicit requirement evidence.\n");
+        sb.append("- **INFERRED**: Derived logically from requirements without direct DOM confirmation.\n");
+        sb.append("- **UNVERIFIED**: AI-proposed implementation detail requiring QA validation before use.\n");
+        sb.append("- **MISSING**: Information required for implementation is absent from requirements.\n\n");
+
         sb.append("## Framework Classes Referenced\n\n");
         if (!response.getReferencedFrameworkClasses().isEmpty()) {
             for (String cls : response.getReferencedFrameworkClasses()) {
@@ -87,16 +120,6 @@ public final class GeneratedCodeReporter {
             }
         } else {
             sb.append("- `BaseWebTest`, `PlaywrightManager`\n");
-        }
-        sb.append("\n");
-
-        sb.append("## Locators Used\n\n");
-        if (!response.getLocatorsUsed().isEmpty()) {
-            for (String loc : response.getLocatorsUsed()) {
-                sb.append("- `").append(loc).append("`\n");
-            }
-        } else {
-            sb.append("*(None specified or handled via Page Object methods)*\n");
         }
         sb.append("\n");
 
@@ -136,18 +159,24 @@ public final class GeneratedCodeReporter {
 
         sb.append("## Human Review Checklist\n\n");
         sb.append("- [ ] Verify locators match real DOM in QA/staging\n");
+        sb.append("- [ ] Verify all UNVERIFIED locators marked with `// TODO: VERIFY LOCATOR` are resolved\n");
         sb.append("- [ ] Verify test data placeholders are resolved\n");
         sb.append("- [ ] Verify expected AssertJ assertions are sufficient\n");
         sb.append("- [ ] Verify no Thread.sleep() or arbitrary delays exist\n");
         sb.append("- [ ] Verify existing Page Object methods are reused\n");
         sb.append("- [ ] Verify business logic matches product specs\n");
         sb.append("- [ ] Verify negative/boundary scenarios are covered\n");
-        sb.append("- [ ] Verify analytics validation where applicable\n");
+        sb.append("- [ ] Verify analytics validation where applicable (no invented events)\n");
         sb.append("- [ ] Verify zero credentials, tokens, or PII exist in code\n");
         sb.append("- [ ] Run manually on QA/staging before promoting\n");
         sb.append("- [ ] Approve before merging into `src/test/java`\n\n");
 
         return sb.toString();
+    }
+
+    private static String escapePipes(String text) {
+        if (text == null) return "";
+        return text.replace("|", "\\|");
     }
 
     private static void guardAgainstPathTraversal(Path path) {

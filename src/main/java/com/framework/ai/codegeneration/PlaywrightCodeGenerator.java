@@ -15,8 +15,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Orchestration service for generating draft Playwright Java code from approved test cases.
- * Strictly writes output to target/ai-generated/ and never touches src/.
+ * Hardened orchestration service for generating draft Playwright Java code.
+ * Enforces evidence verification, strict classification of unverified elements,
+ * and isolated file output in target/ai-generated/.
  */
 public class PlaywrightCodeGenerator {
 
@@ -36,20 +37,10 @@ public class PlaywrightCodeGenerator {
         this.mapper = new ObjectMapper();
     }
 
-    /**
-     * Checks whether code generation is eligible to run.
-     */
     public boolean isGenerationAvailable() {
         return config.isAiEnabled() && aiClient.isAvailable();
     }
 
-    /**
-     * Generates draft Playwright Java test code and Page Object methods from an approved test case.
-     *
-     * @param testCase the approved GeneratedTestCase
-     * @param exportFiles if true, exports draft files and review report to target/ai-generated/
-     * @return GeneratedTestCodeResponse with static validation performed
-     */
     public GeneratedTestCodeResponse generateDraftCode(GeneratedTestCase testCase, boolean exportFiles) {
         if (testCase == null || testCase.getScenario() == null || testCase.getScenario().isBlank()) {
             return GeneratedTestCodeResponse.failure("GeneratedTestCase scenario cannot be null or empty");
@@ -64,10 +55,8 @@ public class PlaywrightCodeGenerator {
         }
 
         try {
-            // 1. Build prompt
             String prompt = TestCodeGenerationPrompt.buildPrompt(testCase);
 
-            // 2. Build AI request
             AiRequest request = AiRequest.builder()
                     .systemInstruction(TestCodeGenerationPrompt.SYSTEM_INSTRUCTION)
                     .prompt(prompt)
@@ -75,7 +64,6 @@ public class PlaywrightCodeGenerator {
                     .maxTokens(4096)
                     .build();
 
-            // 3. Send AI request
             AiResponse response = aiClient.generate(request);
 
             if (!response.isSuccess()) {
@@ -83,10 +71,8 @@ public class PlaywrightCodeGenerator {
                 return GeneratedTestCodeResponse.failure("AI generation failed: " + response.getErrorMessage());
             }
 
-            // 4. Parse JSON
             GeneratedTestCodeResponse parsed = parseAndValidate(response.getContent(), testCase);
 
-            // 5. Export to target/ai-generated/ if requested
             if (exportFiles && parsed.isSuccess()) {
                 GeneratedCodeReporter.exportDraftFiles(parsed, testCase.getScenario());
             }
@@ -153,6 +139,41 @@ public class PlaywrightCodeGenerator {
                 for (JsonNode an : anArray) analytics.add(an.asText());
             }
 
+            // Parse or synthesize evidenceItems
+            List<EvidenceItem> evidenceItems = new ArrayList<>();
+            JsonNode eviArray = root.path("evidenceItems");
+            if (eviArray.isArray() && !eviArray.isEmpty()) {
+                for (JsonNode ev : eviArray) {
+                    evidenceItems.add(new EvidenceItem(
+                            ev.path("item").asText(""),
+                            ev.path("value").asText(""),
+                            ev.path("status").asText("UNVERIFIED"),
+                            ev.path("source").asText("AI inference"),
+                            ev.path("confidence").asDouble(0.5)
+                    ));
+                }
+            } else {
+                // Synthesize from raw locators/analytics
+                for (String loc : locators) {
+                    evidenceItems.add(EvidenceItem.builder()
+                            .item("Locator")
+                            .value(loc)
+                            .status(EvidenceStatus.UNVERIFIED)
+                            .source("AI inference")
+                            .confidence(0.3)
+                            .build());
+                }
+                if (analytics.isEmpty()) {
+                    evidenceItems.add(EvidenceItem.builder()
+                            .item("Analytics event")
+                            .value("None")
+                            .status(EvidenceStatus.MISSING)
+                            .source("No requirement evidence")
+                            .confidence(0.0)
+                            .build());
+                }
+            }
+
             // Ensure disclaimer header in Java code
             String finalClassCode = ensureDisclaimerHeader(testClassCode);
 
@@ -175,6 +196,7 @@ public class PlaywrightCodeGenerator {
                     .warnings(warnings)
                     .assumptions(assumptions)
                     .analyticsSuggestions(analytics)
+                    .evidenceItems(evidenceItems)
                     .reviewRequired(true)
                     .build();
 
