@@ -1,8 +1,18 @@
 package com.framework.listeners;
 
+import com.framework.ai.config.AiConfig;
+import com.framework.ai.extractor.DomContextExtractor;
+import com.framework.ai.model.AiAnalysisResponse;
+import com.framework.ai.model.FailureContext;
+import com.framework.ai.report.AiAnalysisReporter;
+import com.framework.ai.sanitizer.SensitiveDataSanitizer;
+import com.framework.ai.service.FailureAnalysisService;
 import com.framework.driver.PlaywrightManager;
+import com.microsoft.playwright.Page;
 import io.qameta.allure.Allure;
 import java.io.ByteArrayInputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.time.LocalDateTime;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -16,10 +26,23 @@ import org.testng.ITestResult;
  *    itself so non-Web/API-only test runs never pay the tracing cost).
  *  - Structured start/end/pass/fail/skip logging with timestamps.
  *  - Flagging retried-then-passed tests as "flaky" in Allure instead of a silent pass.
+ *  - Safe AI failure and root-cause analysis hook (additive, runs only when AI enabled).
  */
 public class TestListener implements ITestListener {
 
     private static final Logger LOGGER = LogManager.getLogger(TestListener.class);
+    private final FailureAnalysisService aiAnalysisService;
+    private final AiConfig aiConfig;
+
+    public TestListener() {
+        this.aiConfig = new AiConfig();
+        this.aiAnalysisService = new FailureAnalysisService(aiConfig, new com.framework.ai.client.GeminiApiClient(aiConfig));
+    }
+
+    public TestListener(AiConfig aiConfig, FailureAnalysisService aiAnalysisService) {
+        this.aiConfig = aiConfig;
+        this.aiAnalysisService = aiAnalysisService;
+    }
 
     @Override
     public void onTestStart(ITestResult result) {
@@ -42,6 +65,7 @@ public class TestListener implements ITestListener {
                 ? result.getThrowable().getMessage() : "no exception captured");
         attachScreenshotIfAvailable(result);
         safeSaveTrace(result);
+        safeAiFailureAnalysis(result);
     }
 
     @Override
@@ -90,6 +114,61 @@ public class TestListener implements ITestListener {
             PlaywrightManager.discardTrace();
         } catch (IllegalStateException ignored) {
             // No browser context for this test (API-only) — nothing to discard.
+        }
+    }
+
+    private void safeAiFailureAnalysis(ITestResult result) {
+        try {
+            if (!aiConfig.isAiEnabled() || !aiConfig.isFailureAnalysisEnabled()) {
+                return;
+            }
+
+            // Extract safe diagnostic details
+            String currentUrl = "";
+            String pageTitle = "";
+            try {
+                Page page = PlaywrightManager.getPage();
+                if (page != null && !page.isClosed()) {
+                    currentUrl = page.url();
+                    pageTitle = page.title();
+                }
+            } catch (Exception ignored) {
+                // Not a browser test or page closed
+            }
+
+            String domSnippet = DomContextExtractor.extractSafeDom();
+
+            String errorMessage = "";
+            String stackTrace = "";
+            if (result.getThrowable() != null) {
+                errorMessage = result.getThrowable().getMessage() != null
+                        ? result.getThrowable().getMessage() : result.getThrowable().toString();
+                StringWriter sw = new StringWriter();
+                result.getThrowable().printStackTrace(new PrintWriter(sw));
+                stackTrace = sw.toString();
+            }
+
+            long duration = result.getEndMillis() - result.getStartMillis();
+
+            FailureContext context = FailureContext.builder()
+                    .testName(result.getMethod().getMethodName())
+                    .testClass(result.getTestClass().getName())
+                    .errorMessage(errorMessage)
+                    .stackTrace(stackTrace)
+                    .currentUrl(currentUrl)
+                    .pageTitle(pageTitle)
+                    .domSnippet(domSnippet)
+                    .executionDurationMs(duration)
+                    .environment(aiConfig.getProvider())
+                    .build();
+
+            AiAnalysisResponse analysis = aiAnalysisService.analyze(context);
+            if (analysis != null) {
+                AiAnalysisReporter.report(testId(result), analysis);
+            }
+        } catch (Exception e) {
+            // Absolute boundary: AI failure must never become test failure or alter test outcome
+            LOGGER.warn("AI failure analysis hook encountered an error: {}", e.getMessage());
         }
     }
 
