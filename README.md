@@ -25,14 +25,25 @@ automation-framework/
 │   ├── api/                           # APIClientManager, APIClient, APIResponse, ApiAssertions
 │   ├── base/BasePage.java             # Common Page Object actions (click/fill/getText/waits)
 │   ├── listeners/                     # TestListener, RetryAnalyzer, RetryTransformer
-│   └── utils/                         # JsonUtils, WaitUtils, ExcelUtils, DateUtils, DBUtils
+│   ├── utils/                         # JsonUtils, WaitUtils, ExcelUtils, DateUtils, DBUtils
+│   └── ai/                            # AI-assisted QA layer — see §8. Additive, all OFF by default
+│       ├── config/AiConfig.java       # Every AI/agent feature flag (defaults: disabled/0)
+│       ├── client/                    # AiClient interface + GeminiApiClient
+│       ├── sanitizer/                 # SensitiveDataSanitizer — strips secrets before any AI call
+│       ├── service/, prompt/, model/  # Phase 2: AI failure & root-cause analysis
+│       ├── locatoradvisor/            # Phase 5/6: offline + live-runtime locator advisor
+│       ├── diagnosis/                 # Phase 7: FailureDiagnosisHelper — the QA entry point
+│       ├── agent/                     # Phase 8: agentic QA foundation (propose-only, non-executing)
+│       ├── codegeneration/            # Phase 4: AI-assisted Playwright code generation (advisory)
+│       └── testgeneration/            # Phase 3: AI test case/data generation (advisory)
 ├── src/test/java/com/tests/
 │   ├── base/                          # BaseTest, BaseWebTest, BaseApiTest
 │   ├── pages/                         # Page Objects (LoginPage, InventoryPage, ...)
 │   ├── models/                        # Request/response POJOs with builder pattern
 │   ├── dataproviders/                 # TestNG @DataProvider (JSON/CSV backed)
 │   ├── web/                           # Web UI test classes
-│   └── api/                           # API test classes
+│   ├── api/                           # API test classes
+│   └── ai/                            # Test suite for the AI layer (660+ tests)
 ├── src/test/resources/
 │   ├── config/{qa,staging,prod}.properties
 │   ├── testdata/                      # JSON / CSV test data
@@ -124,7 +135,56 @@ Non-critical failures stay visible in the report for triage without blocking eve
 6. Never use `Thread.sleep`. Use Playwright's auto-waiting, `BasePage`'s explicit waits, or
    `WaitUtils.pollUntil(...)` for backend/async state polling.
 
-## 8. Known gaps / next steps to extend this framework for your domain
+## 8. AI-assisted QA layer (additive, explicit, opt-in — everything below is OFF by default)
+
+Built on top of the framework above without changing any existing test execution behavior.
+Nothing in this layer runs automatically; every capability is a separate, explicitly-invoked Java
+class that a QA engineer chooses to call. It is entirely disabled out of the box:
+
+```properties
+ai.enabled=false
+ai.failure.analysis.enabled=false
+ai.locator.runtime.validation.enabled=false
+ai.agent.execution.enabled=false
+ai.agent.browser.mutation.enabled=false
+ai.agent.max.actions=0
+```
+
+**What exists, roughly bottom-up:**
+
+- **AI failure analysis** (`com.framework.ai.service.FailureAnalysisService`) — when both
+  `ai.enabled` and `ai.failure.analysis.enabled` are `true`, `TestListener` asks the configured AI
+  provider (Gemini by default, via `AiClient`) to classify a failure and suggest a root cause. This
+  is the *only* AI call that runs automatically; everything else below must be invoked explicitly.
+- **Locator Advisor** (`com.framework.ai.locatoradvisor`) — offline, DOM-matched locator candidate
+  analysis plus, if `ai.locator.runtime.validation.enabled=true`, live validation against a real
+  Playwright `Page`. The AI proposes candidates; a deterministic matcher independently verifies
+  each one — an AI suggestion is never trusted as evidence by itself.
+- **Failure Diagnosis** (`com.framework.ai.diagnosis.FailureDiagnosisHelper`) — the QA-facing entry
+  point that combines the above into one Markdown/Allure report:
+
+  ```java
+  FailureDiagnosisHelper helper = new FailureDiagnosisHelper();
+  FailureDiagnosis diagnosis = helper.diagnose(testResult);
+  helper.report(diagnosis); // attaches the report to Allure
+  ```
+
+- **Agentic QA foundation** (`com.framework.ai.agent`) — an observe → reason → propose pipeline
+  that can recommend a fix (e.g. "this locator looks stale, try this instead") but cannot act on
+  it. `AgentExecutionGuard` is a fail-closed permission boundary: no configuration combination
+  makes an action executable today — there is no action executor. `SelfHealingRecommendationService`
+  output is for human review only; nothing is applied automatically.
+
+Every evidence status (`VERIFIED` / `INFERRED` / `UNVERIFIED` / `MISSING`) comes from a
+deterministic check (DOM matching, a live Playwright read), never from AI confidence or wording —
+an AI saying "this is definitely correct" never upgrades evidence. Sensitive values
+(`authorization`, `cookie`, `session`, `token`, `password`, etc.) are stripped by the shared
+`SensitiveDataSanitizer` before anything reaches an AI provider or a report.
+
+See `src/test/java/com/tests/ai/` for the full test suite covering this layer, including
+adversarial/prompt-injection and fail-closed safety validation.
+
+## 9. Known gaps / next steps to extend this framework for your domain
 
 - **Payment/Retry/Webhook module**: add a dedicated `com.tests.api.payment` package with tests for
   gateway timeout simulation, webhook delay tolerance (`WaitUtils.pollUntil` on payment status),
