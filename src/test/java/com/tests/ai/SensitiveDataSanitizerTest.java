@@ -95,4 +95,139 @@ public class SensitiveDataSanitizerTest {
         assertThat(sanitized.get("db_password")).isEqualTo("[REDACTED]");
         assertThat(sanitized.get("authToken")).isEqualTo("[REDACTED]");
     }
+
+    // ===================================================================================
+    // Phase 5.2 hardening: bare "authorization="/"session="/"cookie=" key=value forms.
+    // The Phase 5.1 technical spike confirmed these three were not previously redacted.
+    // ===================================================================================
+
+    // A. authorization=
+    @Test
+    public void testAuthorizationKeyValuePlainRedaction() {
+        String input = "Request headers included authorization=TEST_AUTHORIZATION_SECRET before the call";
+        String sanitized = SensitiveDataSanitizer.sanitize(input);
+        assertThat(sanitized).doesNotContain("TEST_AUTHORIZATION_SECRET");
+        assertThat(sanitized).contains("authorization=[REDACTED]");
+    }
+
+    @Test
+    public void testAuthorizationKeyValueQuotedRedaction() {
+        String input = "config: authorization=\"TEST_AUTHORIZATION_SECRET\"";
+        String sanitized = SensitiveDataSanitizer.sanitize(input);
+        assertThat(sanitized).doesNotContain("TEST_AUTHORIZATION_SECRET");
+        assertThat(sanitized).contains("authorization=\"[REDACTED]\"");
+    }
+
+    @Test
+    public void testAuthorizationKeyValueWithWhitespaceAroundEqualsRedaction() {
+        String input = "authorization = TEST_AUTHORIZATION_SECRET";
+        String sanitized = SensitiveDataSanitizer.sanitize(input);
+        assertThat(sanitized).doesNotContain("TEST_AUTHORIZATION_SECRET");
+        assertThat(sanitized).contains("[REDACTED]");
+    }
+
+    // B. session=
+    @Test
+    public void testSessionKeyValuePlainRedaction() {
+        String input = "DOM snippet contained session=TEST_SESSION_SECRET in a hidden field";
+        String sanitized = SensitiveDataSanitizer.sanitize(input);
+        assertThat(sanitized).doesNotContain("TEST_SESSION_SECRET");
+        assertThat(sanitized).contains("session=[REDACTED]");
+    }
+
+    @Test
+    public void testSessionKeyValueQuotedRedaction() {
+        String input = "window.__state = { session=\"TEST_SESSION_SECRET\" }";
+        String sanitized = SensitiveDataSanitizer.sanitize(input);
+        assertThat(sanitized).doesNotContain("TEST_SESSION_SECRET");
+        assertThat(sanitized).contains("session=\"[REDACTED]\"");
+    }
+
+    @Test
+    public void testSessionKeyValueWithWhitespaceAroundEqualsRedaction() {
+        String input = "session   =   TEST_SESSION_SECRET";
+        String sanitized = SensitiveDataSanitizer.sanitize(input);
+        assertThat(sanitized).doesNotContain("TEST_SESSION_SECRET");
+        assertThat(sanitized).contains("[REDACTED]");
+    }
+
+    // C. cookie=
+    @Test
+    public void testCookieKeyValuePlainRedaction() {
+        String input = "document.cookie=TEST_COOKIE_SECRET;path=/";
+        String sanitized = SensitiveDataSanitizer.sanitize(input);
+        assertThat(sanitized).doesNotContain("TEST_COOKIE_SECRET");
+        assertThat(sanitized).contains("cookie=[REDACTED]");
+    }
+
+    @Test
+    public void testCookieKeyValueQuotedRedaction() {
+        String input = "attrs: cookie=\"TEST_COOKIE_SECRET\"";
+        String sanitized = SensitiveDataSanitizer.sanitize(input);
+        assertThat(sanitized).doesNotContain("TEST_COOKIE_SECRET");
+        assertThat(sanitized).contains("cookie=\"[REDACTED]\"");
+    }
+
+    @Test
+    public void testCookieKeyValueWithWhitespaceAroundEqualsRedaction() {
+        String input = "cookie = TEST_COOKIE_SECRET";
+        String sanitized = SensitiveDataSanitizer.sanitize(input);
+        assertThat(sanitized).doesNotContain("TEST_COOKIE_SECRET");
+        assertThat(sanitized).contains("[REDACTED]");
+    }
+
+    // Value followed by another key/value pair in the same string, for all three new keys
+    @Test
+    public void testAuthorizationSessionCookieFollowedByAnotherKeyValuePair() {
+        String input = "authorization=TEST_AUTHORIZATION_SECRET session=TEST_SESSION_SECRET cookie=TEST_COOKIE_SECRET nextField=normalValue";
+        String sanitized = SensitiveDataSanitizer.sanitize(input);
+
+        assertThat(sanitized).doesNotContain("TEST_AUTHORIZATION_SECRET");
+        assertThat(sanitized).doesNotContain("TEST_SESSION_SECRET");
+        assertThat(sanitized).doesNotContain("TEST_COOKIE_SECRET");
+        assertThat(sanitized).contains("nextField=normalValue");
+    }
+
+    // Regression: previously-supported bare key=value forms must remain redacted
+    @Test
+    public void testRegressionExistingKeyValueFormsStillRedacted() {
+        assertThat(SensitiveDataSanitizer.sanitize("token=TEST_TOKEN_SECRET"))
+                .doesNotContain("TEST_TOKEN_SECRET");
+        assertThat(SensitiveDataSanitizer.sanitize("secret=TEST_SECRET_VALUE"))
+                .doesNotContain("TEST_SECRET_VALUE")
+                .contains("secret=[REDACTED]");
+        assertThat(SensitiveDataSanitizer.sanitize("api_key=TEST_API_KEY_SECRET"))
+                .doesNotContain("TEST_API_KEY_SECRET")
+                .contains("api_key=[REDACTED]");
+        assertThat(SensitiveDataSanitizer.sanitize("apikey=TEST_API_KEY_SECRET"))
+                .doesNotContain("TEST_API_KEY_SECRET")
+                .contains("apikey=[REDACTED]");
+        assertThat(SensitiveDataSanitizer.sanitize("credential=TEST_CREDENTIAL_SECRET"))
+                .doesNotContain("TEST_CREDENTIAL_SECRET")
+                .contains("credential=[REDACTED]");
+        assertThat(SensitiveDataSanitizer.sanitize("password=TEST_PASSWORD_SECRET"))
+                .doesNotContain("TEST_PASSWORD_SECRET")
+                .contains("password=[REDACTED]");
+    }
+
+    // Regression: existing HTTP/header-style forms must remain fully redacted, unweakened
+    @Test
+    public void testRegressionHttpHeaderStyleFormsStillRedacted() {
+        String authHeader = "Authorization: Bearer TEST_AUTHORIZATION_SECRET";
+        String sanitizedAuth = SensitiveDataSanitizer.sanitize(authHeader);
+        assertThat(sanitizedAuth).doesNotContain("TEST_AUTHORIZATION_SECRET");
+        assertThat(sanitizedAuth).contains("Authorization: [REDACTED]");
+
+        String cookieHeader = "Cookie: sessionid=TEST_SESSION_SECRET; path=/";
+        String sanitizedCookie = SensitiveDataSanitizer.sanitize(cookieHeader);
+        assertThat(sanitizedCookie).doesNotContain("TEST_SESSION_SECRET");
+        assertThat(sanitizedCookie).contains("Cookie: [REDACTED]");
+    }
+
+    // Null/empty input handling (matches SensitiveDataSanitizer.sanitize's documented null-safe contract)
+    @Test
+    public void testNullAndEmptyInputReturnEmptyString() {
+        assertThat(SensitiveDataSanitizer.sanitize(null)).isEqualTo("");
+        assertThat(SensitiveDataSanitizer.sanitize("")).isEqualTo("");
+    }
 }
