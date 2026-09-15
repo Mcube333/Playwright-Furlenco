@@ -97,6 +97,35 @@ public class AiConfig {
     }
 
     /**
+     * Phase 8 Step 5 master switch for agent action execution. Defaults to false. Independent of
+     * {@link #isAiEnabled()} — even with AI enabled (so agent reasoning may run), this must be
+     * separately enabled before {@code AgentExecutionGuard} will consider any decision for
+     * execution. There is no execution capability in the framework yet regardless of this flag —
+     * it exists so the policy boundary is already safe-by-default before one is ever built.
+     */
+    public boolean isAgentExecutionEnabled() {
+        return configManager.getBoolean("ai.agent.execution.enabled", false);
+    }
+
+    /**
+     * Phase 8 Step 5 master switch for allowing an agent-proposed action to eventually mutate
+     * browser state. Defaults to false. Read by {@code AgentExecutionGuard} as an additional,
+     * independent fail-closed gate — never implied by {@link #isAgentExecutionEnabled()} alone.
+     */
+    public boolean isAgentBrowserMutationEnabled() {
+        return configManager.getBoolean("ai.agent.browser.mutation.enabled", false);
+    }
+
+    /**
+     * Phase 8 Step 5 maximum number of agent actions permitted. Defaults to 0 (no actions
+     * permitted) — this is a policy ceiling for a future executor, not a counter this framework
+     * currently enforces at runtime (there is no executor yet to count against it).
+     */
+    public int getAgentMaxActions() {
+        return configManager.getInt("ai.agent.max.actions", 0);
+    }
+
+    /**
      * Validates configuration if AI is enabled.
      * When AI is disabled, validation always succeeds without requiring credentials.
      *
