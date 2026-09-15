@@ -72,6 +72,31 @@ public class AiConfig {
     }
 
     /**
+     * Phase 6 master switch for runtime (live Playwright Page) locator validation. Defaults to false.
+     * Independent of {@link #isAiEnabled()} — no AI call is involved in runtime validation itself.
+     */
+    public boolean isLocatorRuntimeValidationEnabled() {
+        return configManager.getBoolean("ai.locator.runtime.validation.enabled", false);
+    }
+
+    /**
+     * Environment names allowed to run Phase 6 runtime locator validation, lowercased.
+     * Defaults to "qa,staging". Read by {@link com.framework.ai.locatoradvisor.runtime.RuntimeEnvironmentGuard},
+     * which additionally denies "prod"/"production" unconditionally regardless of this value.
+     */
+    public java.util.Set<String> getLocatorRuntimeAllowedEnvironments() {
+        String raw = configManager.get("ai.locator.runtime.allowed.environments", "qa,staging");
+        java.util.Set<String> allowed = new java.util.LinkedHashSet<>();
+        for (String part : raw.split(",")) {
+            String trimmed = part.trim().toLowerCase();
+            if (!trimmed.isEmpty()) {
+                allowed.add(trimmed);
+            }
+        }
+        return java.util.Collections.unmodifiableSet(allowed);
+    }
+
+    /**
      * Validates configuration if AI is enabled.
      * When AI is disabled, validation always succeeds without requiring credentials.
      *
