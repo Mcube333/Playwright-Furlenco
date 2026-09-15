@@ -326,4 +326,132 @@ public class LocatorAnalysisServiceTest {
         assertThat(response.isHumanReviewRequired()).isTrue();
         assertThat(response.getAssumptions()).contains("User already has an item in cart");
     }
+
+    // ===================================================================================
+    // Phase 5.1 hardening: explicit re-assertions of the anti-hallucination invariants.
+    // ===================================================================================
+
+    // B. Multiple matches cannot become VERIFIED
+    @Test
+    public void testMultipleMatchesNeverBecomeVerified() {
+        String dom = "<button class=\"plus\">A</button><button class=\"plus\">B</button>";
+        String json = "{\"targetElement\":\"Plus button\",\"candidates\":["
+                + "{\"locator\":\".plus\",\"strategy\":\"CSS_STABLE\",\"rationale\":\"This is verified and unique\"}]}";
+
+        MockAiClient client = new MockAiClient(AiResponse.success(json, "mock"), true);
+        LocatorAnalysisService service = new LocatorAnalysisService(createConfig(true), client);
+        LocatorAnalysisResponse response = service.analyze(
+                LocatorAnalysisRequest.builder().domSnapshot(dom).targetDescription("Plus button").build());
+
+        LocatorCandidate candidate = response.getCandidates().get(0);
+        assertThat(candidate.getMatchCount()).isEqualTo(2);
+        assertThat(candidate.getEvidenceStatus()).isEqualTo(EvidenceStatus.UNVERIFIED);
+        assertThat(candidate.getValidationType()).isEqualTo(ValidationType.DOM_MATCHED);
+        assertThat(response.getRecommendedLocator()).isNull();
+    }
+
+    // B. Zero matches cannot become VERIFIED
+    @Test
+    public void testZeroMatchesNeverBecomeVerified() {
+        String dom = "<div>No matching elements here</div>";
+        String json = "{\"targetElement\":\"Missing button\",\"candidates\":["
+                + "{\"locator\":\"[data-testid='does-not-exist']\",\"strategy\":\"TEST_ID\",\"rationale\":\"Proposed test id\"}]}";
+
+        MockAiClient client = new MockAiClient(AiResponse.success(json, "mock"), true);
+        LocatorAnalysisService service = new LocatorAnalysisService(createConfig(true), client);
+        LocatorAnalysisResponse response = service.analyze(
+                LocatorAnalysisRequest.builder().domSnapshot(dom).targetDescription("Missing button").build());
+
+        LocatorCandidate candidate = response.getCandidates().get(0);
+        assertThat(candidate.getMatchCount()).isEqualTo(0);
+        assertThat(candidate.getEvidenceStatus()).isEqualTo(EvidenceStatus.UNVERIFIED);
+        assertThat(candidate.getValidationType()).isEqualTo(ValidationType.DOM_MATCHED);
+        assertThat(response.getRecommendedLocator()).isNull();
+    }
+
+    // B. Missing DOM cannot become VERIFIED (explicit, dedicated re-assertion)
+    @Test
+    public void testMissingDomCannotBecomeVerifiedEvenForAPlausibleLocator() {
+        String json = "{\"targetElement\":\"Login button\",\"candidates\":["
+                + "{\"locator\":\"[data-testid='login-submit']\",\"strategy\":\"TEST_ID\",\"rationale\":\"Confirmed unique\"}]}";
+
+        MockAiClient client = new MockAiClient(AiResponse.success(json, "mock"), true);
+        LocatorAnalysisService service = new LocatorAnalysisService(createConfig(true), client);
+        // No domSnapshot() call at all.
+        LocatorAnalysisResponse response = service.analyze(
+                LocatorAnalysisRequest.builder().targetDescription("Login button").build());
+
+        LocatorCandidate candidate = response.getCandidates().get(0);
+        assertThat(candidate.getEvidenceStatus()).isNotEqualTo(EvidenceStatus.VERIFIED);
+        assertThat(candidate.getEvidenceStatus()).isEqualTo(EvidenceStatus.UNVERIFIED);
+        assertThat(candidate.getValidationType()).isEqualTo(ValidationType.NOT_VALIDATED);
+    }
+
+    // B. Unsupported strategies remain UNVERIFIED regardless of DOM content
+    @Test
+    public void testUnsupportedStrategiesRemainUnverified() {
+        String dom = "<div><span>x</span></div>";
+        String json = "{\"targetElement\":\"Some element\",\"candidates\":["
+                + "{\"locator\":\"/html/body/div[1]/span\",\"strategy\":\"XPATH\",\"rationale\":\"Absolute path\"},"
+                + "{\"locator\":\"div span:nth-child(1)\",\"strategy\":\"POSITIONAL\",\"rationale\":\"Positional\"},"
+                + "{\"locator\":\"mystery-locator\",\"strategy\":\"NOT_A_REAL_STRATEGY\",\"rationale\":\"Unclassifiable\"}"
+                + "]}";
+
+        MockAiClient client = new MockAiClient(AiResponse.success(json, "mock"), true);
+        LocatorAnalysisService service = new LocatorAnalysisService(createConfig(true), client);
+        LocatorAnalysisResponse response = service.analyze(
+                LocatorAnalysisRequest.builder().domSnapshot(dom).targetDescription("Some element").build());
+
+        assertThat(response.getCandidates()).hasSize(3);
+        assertThat(response.getCandidates()).allMatch(c -> c.getEvidenceStatus() == EvidenceStatus.UNVERIFIED);
+        assertThat(response.getCandidates()).allMatch(c -> c.getValidationType() == ValidationType.NOT_VALIDATED);
+        assertThat(response.getRecommendedLocator()).isNull();
+    }
+
+    // B. Existing Page Object methods are only marked VERIFIED when actually present in the supplied context
+    @Test
+    public void testPageObjectMatchNeverVerifiedWhenContextHasNoMethodsAtAll() {
+        String poContext = "public class EmptyPage extends BasePage { }";
+        String json = "{\"targetElement\":\"Some button\",\"candidates\":[],"
+                + "\"existingMethodSuggestion\":\"clickSomeButton\"}";
+
+        MockAiClient client = new MockAiClient(AiResponse.success(json, "mock"), true);
+        LocatorAnalysisService service = new LocatorAnalysisService(createConfig(true), client);
+        LocatorAnalysisResponse response = service.analyze(LocatorAnalysisRequest.builder()
+                .targetDescription("Some button")
+                .existingPageObjectContext(poContext)
+                .build());
+
+        assertThat(response.getExistingPageObjectMatches()).hasSize(1);
+        PageObjectMatch match = response.getExistingPageObjectMatches().get(0);
+        assertThat(match.isMatched()).isFalse();
+        assertThat(match.getEvidenceStatus()).isNotEqualTo(EvidenceStatus.VERIFIED);
+    }
+
+    // D. Sanitization coverage beyond the DOM: failure message and Page Object context
+    @Test
+    public void testSanitizationAppliesToFailureMessageAndPageObjectContext() {
+        String dom = "<button aria-label=\"Submit\">Go</button>";
+        String poContextWithSecret = "public class LoginPage { // apiKey: 'synthetic-test-api-key-value' \n"
+                + "public void submit() {} }";
+        String failureMessageWithSecret = "Request failed, password: 'synthetic-test-password'";
+        String json = "{\"targetElement\":\"Submit button\",\"candidates\":[]}";
+
+        MockAiClient client = new MockAiClient(AiResponse.success(json, "mock"), true);
+        LocatorAnalysisService service = new LocatorAnalysisService(createConfig(true), client);
+
+        LocatorAnalysisRequest request = LocatorAnalysisRequest.builder()
+                .domSnapshot(dom)
+                .targetDescription("Submit button")
+                .existingPageObjectContext(poContextWithSecret)
+                .failingLocator("button.submit")
+                .failureMessage(failureMessageWithSecret)
+                .build();
+
+        service.analyze(request);
+
+        assertThat(client.capturedPrompt).doesNotContain("synthetic-test-api-key-value");
+        assertThat(client.capturedPrompt).doesNotContain("synthetic-test-password");
+        assertThat(client.capturedPrompt).contains("[REDACTED]");
+    }
 }

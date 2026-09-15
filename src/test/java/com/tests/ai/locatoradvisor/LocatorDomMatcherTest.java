@@ -98,4 +98,53 @@ public class LocatorDomMatcherTest {
         MatchResult result = LocatorDomMatcher.evaluate(dom, LocatorStrategy.TEST_ID, "add-to-cart-sauce-labs-backpack", null);
         assertThat(result.getMatchCount()).isEqualTo(1);
     }
+
+    // ===================================================================================
+    // Phase 5.1 hardening: explicit re-assertions of the matcher-level anti-hallucination
+    // invariants — the matcher is the sole source of truth for match evidence.
+    // ===================================================================================
+
+    @Test
+    public void testTestIdWithNoMatchInDomReturnsZeroNotNegativeOne() {
+        String dom = "<div><button data-testid=\"unrelated-button\">x</button></div>";
+        MatchResult result = LocatorDomMatcher.evaluate(dom, LocatorStrategy.TEST_ID, "[data-testid='cart-plus']", null);
+        // Zero is a real, evaluated result (element absent) — distinct from -1 (strategy not evaluable at all).
+        assertThat(result.isEvaluable()).isTrue();
+        assertThat(result.getMatchCount()).isEqualTo(0);
+    }
+
+    @Test
+    public void testUnknownStrategyIsNeverEvaluable() {
+        String dom = "<div><button>x</button></div>";
+        MatchResult result = LocatorDomMatcher.evaluate(dom, LocatorStrategy.UNKNOWN, "mystery-locator", null);
+        assertThat(result.isEvaluable()).isFalse();
+        assertThat(result.getMatchCount()).isEqualTo(-1);
+    }
+
+    @Test
+    public void testUnparseableCssSelectorIsNotEvaluableRatherThanFalselyZero() {
+        String dom = "<div><button>x</button></div>";
+        // No attribute pattern and no leading '.'/tag.class form — cannot be parsed into a checkable token.
+        MatchResult result = LocatorDomMatcher.evaluate(dom, LocatorStrategy.CSS_STABLE, ">>weird::selector", null);
+        assertThat(result.isEvaluable()).isFalse();
+        assertThat(result.getNotes()).anyMatch(n -> n.contains("Could not parse selector"));
+    }
+
+    @Test
+    public void testGetByRoleExpressionWithAccessibleNameIsParsedAndMatched() {
+        String dom = "<button aria-label=\"Increase quantity\">+</button>";
+        MatchResult result = LocatorDomMatcher.evaluate(
+                dom, LocatorStrategy.ROLE, "getByRole('button', { name: 'Increase quantity' })", null);
+        assertThat(result.getMatchCount()).isEqualTo(1);
+    }
+
+    @Test
+    public void testTagDotClassSelectorMatchesRealisticFailedLocatorExample() {
+        // Mirrors the Phase 5 spec's own failure-mode example: "button.plus" against a DOM
+        // that only exposes an accessible name, not that class — must resolve to zero, not -1.
+        String dom = "<button aria-label=\"Increase quantity\">+</button>";
+        MatchResult result = LocatorDomMatcher.evaluate(dom, LocatorStrategy.CSS_STABLE, "button.plus", null);
+        assertThat(result.isEvaluable()).isTrue();
+        assertThat(result.getMatchCount()).isEqualTo(0);
+    }
 }
