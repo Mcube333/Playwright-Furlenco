@@ -27,9 +27,13 @@ public final class SensitiveDataSanitizer {
     private static final Pattern BEARER_TOKEN_PATTERN = Pattern.compile(
             "(?i)(bearer\\s+)[a-zA-Z0-9._~+/-]{8,}");
 
-    // Key-value pairs for sensitive fields: password, secret, token, apiKey, etc.
+    // Key-value pairs for sensitive fields: password, secret, token, apiKey, authorization, session, cookie, etc.
+    // Bare "authorization="/"session="/"cookie=" forms are covered here (in addition to the dedicated
+    // header-style AUTH_HEADER_*/COOKIE_PATTERN below) since this is the only pattern in the file with
+    // quote-aware value capture (group 2/3), so a quoted value like authorization="secret" redacts cleanly
+    // to authorization="[REDACTED]" instead of leaving the quotes stranded or the match failing outright.
     private static final Pattern KV_SENSITIVE_PATTERN = Pattern.compile(
-            "(?i)(['\"]?(?:password|passwd|pwd|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|session[_-]?id|session[_-]?token|jwt|credential|private[_-]?key)['\"]?\\s*[:=]\\s*['\"]?)([^'\"&,\\r\\n\\s]+)(['\"]?)");
+            "(?i)(['\"]?(?:password|passwd|pwd|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|authorization|session[_-]?id|session[_-]?token|session|cookie|jwt|credential|private[_-]?key)['\"]?\\s*[:=]\\s*['\"]?)([^'\"&,\\r\\n\\s]+)(['\"]?)");
 
     // Cookie headers and set-cookie values
     private static final Pattern COOKIE_PATTERN = Pattern.compile(

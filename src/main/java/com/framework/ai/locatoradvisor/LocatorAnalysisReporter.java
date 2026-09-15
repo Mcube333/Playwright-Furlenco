@@ -1,5 +1,6 @@
 package com.framework.ai.locatoradvisor;
 
+import com.framework.ai.locatoradvisor.runtime.RuntimeValidationResult;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -23,6 +24,16 @@ public final class LocatorAnalysisReporter {
     }
 
     public static Path exportReport(LocatorAnalysisResponse response) {
+        return exportReport(response, null);
+    }
+
+    /**
+     * Phase 6 additive overload: same export as {@link #exportReport(LocatorAnalysisResponse)},
+     * with an optional Phase 6 runtime validation section appended when {@code runtimeResult} is
+     * supplied. Passing {@code null} for {@code runtimeResult} is byte-for-byte identical to the
+     * single-argument overload.
+     */
+    public static Path exportReport(LocatorAnalysisResponse response, RuntimeValidationResult runtimeResult) {
         if (response == null || !response.isSuccess()) {
             return null;
         }
@@ -30,7 +41,7 @@ public final class LocatorAnalysisReporter {
             Files.createDirectories(DEFAULT_TARGET_DIR);
             Path reportPath = DEFAULT_TARGET_DIR.resolve("locator-analysis-report.md").normalize();
             guardAgainstPathTraversal(reportPath);
-            Files.writeString(reportPath, buildMarkdownReport(response), StandardCharsets.UTF_8);
+            Files.writeString(reportPath, buildMarkdownReport(response, runtimeResult), StandardCharsets.UTF_8);
             LOGGER.info("Exported locator analysis report to: {}", reportPath);
             return reportPath;
         } catch (IOException e) {
@@ -146,6 +157,42 @@ public final class LocatorAnalysisReporter {
         sb.append("- [ ] Verify accessibility\n");
         sb.append("- [ ] Verify cross-browser behavior\n");
         sb.append("- [ ] Approve before implementation\n");
+
+        return sb.toString();
+    }
+
+    /**
+     * Phase 6 additive overload: renders the exact same report as
+     * {@link #buildMarkdownReport(LocatorAnalysisResponse)}, with one appended section when a
+     * {@link RuntimeValidationResult} is supplied. Passing {@code null} is byte-for-byte identical
+     * to the single-argument overload — the existing "Candidate Locators" table (Phase 5 DOM
+     * evidence) is never changed or overwritten by runtime data; the two are always shown as
+     * clearly separate sections.
+     */
+    public static String buildMarkdownReport(LocatorAnalysisResponse response, RuntimeValidationResult runtimeResult) {
+        String base = buildMarkdownReport(response);
+        if (runtimeResult == null) {
+            return base;
+        }
+
+        StringBuilder sb = new StringBuilder(base);
+        sb.append("## Runtime Validation\n\n");
+        sb.append("> [!NOTE]\n");
+        sb.append("> Live Playwright check against the CURRENT page, performed separately from the static\n");
+        sb.append("> DOM-snapshot evidence above. This does not overwrite or replace the Phase 5 evidence in\n");
+        sb.append("> \"Candidate Locators\" — both are shown independently.\n\n");
+        sb.append("| Field | Value |\n");
+        sb.append("|---|---|\n");
+        sb.append("| Locator | `").append(escapePipes(runtimeResult.getLocator())).append("` |\n");
+        sb.append("| Match Count | ").append(runtimeResult.getMatchCount() < 0 ? "n/a" : String.valueOf(runtimeResult.getMatchCount())).append(" |\n");
+        sb.append("| Visible | ").append(runtimeResult.getVisible() == null ? "n/a" : runtimeResult.getVisible().toString()).append(" |\n");
+        sb.append("| Enabled | ").append(runtimeResult.getEnabled() == null ? "n/a" : runtimeResult.getEnabled().toString()).append(" |\n");
+        sb.append("| Current URL | ").append(escapePipes(runtimeResult.getCurrentUrl())).append(" |\n");
+        sb.append("| Environment | ").append(escapePipes(runtimeResult.getEnvironment())).append(" |\n");
+        sb.append("| Timestamp | ").append(runtimeResult.getTimestamp()).append(" |\n");
+        sb.append("| Evidence Status | ").append(runtimeResult.getEvidenceStatus()).append(" |\n");
+        sb.append("| Validation Type | ").append(runtimeResult.getValidationType()).append(" |\n");
+        sb.append("| Validation Message | ").append(escapePipes(runtimeResult.getMessage())).append(" |\n");
 
         return sb.toString();
     }
