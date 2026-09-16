@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<!--
+  Kept separate from furlenco-suite.xml deliberately: every test here has real, irreversible
+  side effects on the target environment — placing a real order (even though payment goes through
+  Razorpay's test mode and never moves real money) or cancelling an existing one. Run this
+  explicitly, not as part of a routine smoke/regression pass, e.g.:
+    mvn test -DsuiteXmlFile=src/test/resources/furlenco-order-lifecycle-suite.xml -Denv=preprod
+-->
+<suite name="Furlenco Order Lifecycle Suite (mutating — run explicitly)" parallel="none">
+
+    <listeners>
+        <listener class-name="com.framework.listeners.TestListener"/>
+        <listener class-name="com.framework.listeners.RetryTransformer"/>
+    </listeners>
+
+    <test name="Furlenco Order Lifecycle">
+        <classes>
+            <class name="com.tests.web.furlenco.FurlencoSuccessfulOrderTest"/>
+            <class name="com.tests.web.furlenco.FurlencoCancelOrderTest"/>
+        </classes>
+    </test>
+
+</suite>

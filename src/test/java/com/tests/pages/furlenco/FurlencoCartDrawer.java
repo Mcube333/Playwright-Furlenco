@@ -11,12 +11,13 @@ import org.apache.logging.log4j.Logger;
 /**
  * Page Object for the Furlenco Cart screen — a real page at {@code /cart}, verified against a
  * live session, not a drawer overlay (the class name is kept for backward compatibility with
- * existing callers/tests). There is no separate "Checkout" button or route in the current app:
- * the Cart page itself shows the address, coupon and price breakup ("Rent Cost Breakup" /
- * "View Breakup"), and a single {@code Pay ₹<amount>} button that — when the user isn't
- * authenticated — opens the Login dialog directly instead of navigating anywhere. The manual test
- * suite's separate "Order Summary"/"Checkout" screens map to this same page; see
- * {@link FurlencoOrderSummaryPage} javadoc.
+ * existing callers/tests).
+ * <p>
+ * Verified checkout flow (authenticated session, Rent): Cart -&gt; click {@code CHECKOUT} -&gt; a
+ * "Rental Terms Reminder" dialog with a {@code PROCEED} button -&gt; navigates to
+ * {@code /checkout/address?vertical=...&cartId=...} ({@link FurlencoCheckoutAddressPage}) -&gt;
+ * {@link FurlencoOrderSummaryPage} -&gt; {@link FurlencoPaymentPage}. For an unauthenticated
+ * session, clicking Pay/Checkout opens the Login dialog directly instead.
  */
 public class FurlencoCartDrawer extends BasePage {
 
@@ -25,17 +26,18 @@ public class FurlencoCartDrawer extends BasePage {
     // Note: the bare `text=` engine prefix cannot be mixed with plain CSS clauses in the same
     // comma-separated selector list (throws a parse error) — use the composable `:text()` pseudo
     // instead, verified live.
-    private static final String CART_CONTAINER = ":text(\"Rent Cost Breakup\"), button:has-text('Pay ₹'), #empty-cart";
+    private static final String CART_CONTAINER = ":text(\"Cost Breakup\"), button:has-text('Pay ₹'), button:has-text('CHECKOUT'), #empty-cart";
     private static final String CLOSE_BUTTON = "button[aria-label='Close'], button:has-text('✕')";
     private static final String EMPTY_CART_MSG = "#empty-cart, :text(\"Your Cart Looks\"), :text(\"empty\"), :text(\"No items\")";
-    // "Pay ₹<amount>" is the real, verified button text; the others are unverified fallbacks in
-    // case Buy/Unlmtd verticals or a future redesign use different copy.
+    // Verified button text for an authenticated session is "CHECKOUT"; "Pay ₹<amount>" is what an
+    // unauthenticated session shows instead (opens Login rather than navigating).
     private static final String CHECKOUT_BUTTON =
-            "button:has-text('Pay ₹'), button:has-text('Checkout'), button:has-text('Proceed')";
-    private static final String MIN_TENURE_DIALOG =
-            "[data-slot='dialog-content']:has-text('tenure'), [data-slot='dialog-content']:has-text('Tenure')";
+            "button:has-text('CHECKOUT'), button:has-text('Pay ₹'), button:has-text('Proceed')";
+    // Verified live: a "Rental Terms Reminder" dialog with a PROCEED button (Rent only, minimum
+    // tenure disclosure) — not literally worded "tenure", so match on the dialog's own PROCEED CTA.
+    private static final String MIN_TENURE_DIALOG = "[data-slot='dialog-content']:has-text('Rental Terms')";
     private static final String MIN_TENURE_CONFIRM_BUTTON =
-            "[data-slot='dialog-content'] button:has-text('Continue'), [data-slot='dialog-content'] button:has-text('Confirm')";
+            "[data-slot='dialog-content'] button:has-text('PROCEED'), [data-slot='dialog-content'] button:has-text('Continue')";
 
     public FurlencoCartDrawer(Page page) {
         super(page);
@@ -81,31 +83,31 @@ public class FurlencoCartDrawer extends BasePage {
     public FurlencoCartDrawer confirmMinTenurePopupIfPresent() {
         if (isMinTenurePopupDisplayed()) {
             LOGGER.info("Min tenure popup displayed, confirming");
-            page.locator(MIN_TENURE_CONFIRM_BUTTON).first().click(new Locator.ClickOptions().setForce(true));
-            page.waitForTimeout(500);
+            page.locator(MIN_TENURE_CONFIRM_BUTTON).first().click();
+            page.waitForTimeout(800);
         }
         return this;
     }
 
     /**
-     * Clicks Pay/Checkout. Verified behavior: for an unauthenticated session this opens the Login
-     * dialog directly (same dialog as {@link FurlencoHomePage#openLogin()}) rather than navigating
-     * anywhere — callers must check {@link #isLoginPromptedOnCheckout()} and complete login via
-     * {@link FurlencoLoginPage} before the (same-page) Order Summary/Payment state is reachable.
+     * Clicks Pay/Checkout. For an authenticated session this navigates towards
+     * {@link FurlencoCheckoutAddressPage} (handling the Rent min-tenure dialog along the way); for
+     * an unauthenticated session it opens the Login dialog instead — check
+     * {@link #isLoginPromptedOnCheckout()} first.
      */
-    @Step("Click Pay/Checkout to proceed towards Order Summary")
-    public FurlencoOrderSummaryPage clickCheckout() {
-        LOGGER.info("Clicking Pay/Checkout");
+    @Step("Click Checkout to proceed to Delivery Address")
+    public FurlencoCheckoutAddressPage clickCheckout() {
+        LOGGER.info("Clicking Checkout");
         Locator checkoutBtn = page.locator(CHECKOUT_BUTTON).first();
         checkoutBtn.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE));
         checkoutBtn.click();
         page.waitForTimeout(800);
         confirmMinTenurePopupIfPresent();
         page.waitForLoadState();
-        return new FurlencoOrderSummaryPage(page);
+        return new FurlencoCheckoutAddressPage(page);
     }
 
-    @Step("Check if clicking Pay/Checkout opened the Login dialog (unauthenticated session)")
+    @Step("Check if clicking Checkout opened the Login dialog (unauthenticated session)")
     public boolean isLoginPromptedOnCheckout() {
         return new FurlencoLoginPage(page).isOpen();
     }

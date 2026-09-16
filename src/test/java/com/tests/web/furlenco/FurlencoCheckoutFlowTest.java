@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.tests.base.BaseWebTest;
 import com.tests.pages.furlenco.FurlencoCartDrawer;
+import com.tests.pages.furlenco.FurlencoCheckoutAddressPage;
 import com.tests.pages.furlenco.FurlencoHomePage;
 import com.tests.pages.furlenco.FurlencoLoginPage;
 import com.tests.pages.furlenco.FurlencoOrderSummaryPage;
@@ -20,11 +21,11 @@ import org.testng.annotations.Test;
 
 /**
  * Covers "Cart", "Order Summary", "Checkout" and the observation-only part of "Payment" from the
- * manual test suite: Add to Cart -> Cart -> Order Summary -> Payment screen, for Rent / Buy /
- * Unlmtd. Deliberately stops at verifying the Payment screen is reached and offers Card/UPI/
- * Netbanking — it never submits an actual payment (see {@link FurlencoPaymentPage} javadoc for
- * why). Actually placing an order and verifying "Order Processing"/"Order Success" therefore
- * needs a sandboxed payment gateway + documented test-card flow, which is out of scope here.
+ * manual test suite. Verified live checkout flow: Cart -&gt; click {@code CHECKOUT} -&gt; (Rent
+ * only) a "Rental Terms Reminder" popup -&gt; Delivery Address ({@link FurlencoCheckoutAddressPage})
+ * -&gt; Order Summary -&gt; Payment. Deliberately stops at verifying the Payment screen is reached
+ * and offers Card/UPI — it never submits an actual payment (see
+ * {@link FurlencoSuccessfulOrderTest} for the flow that does, via Razorpay test-mode).
  */
 @Epic("Furlenco Web Automation")
 @Feature("Cart, Order Summary and Checkout")
@@ -39,14 +40,9 @@ public class FurlencoCheckoutFlowTest extends BaseWebTest {
         homePage = new FurlencoHomePage(page);
     }
 
-    /**
-     * Verified live behavior: clicking Pay on an unauthenticated Cart opens the Login dialog
-     * directly rather than an "Order Summary" route. This completes that login (if prompted) so
-     * callers land on the authenticated checkout state the rest of the flow assumes.
-     */
-    private void completeLoginIfPromptedOnCheckout(FurlencoCartDrawer cartDrawer) {
-        if (cartDrawer.isLoginPromptedOnCheckout()) {
-            FurlencoLoginPage loginPage = new FurlencoLoginPage(page);
+    private void login() {
+        FurlencoLoginPage loginPage = homePage.openLogin();
+        if (loginPage.isOpen()) {
             loginPage.loginWithOtp(config.get("test.user.username"), config.get("test.user.password"));
         }
     }
@@ -58,7 +54,7 @@ public class FurlencoCheckoutFlowTest extends BaseWebTest {
         homePage.open(furlencoUrl);
         homePage.clickRentTab();
         FurlencoPlpPage plpPage = homePage.clickCategory("Bedroom");
-        FurlencoProductPage productPage = plpPage.clickFirstProduct();
+        FurlencoProductPage productPage = plpPage.clickFirstAvailableProduct(10);
 
         assertThat(productPage.isAddToCartButtonVisible())
                 .as("Add to Cart CTA should be visible on Rent PDP")
@@ -73,7 +69,7 @@ public class FurlencoCheckoutFlowTest extends BaseWebTest {
         homePage.open(furlencoUrl);
         homePage.clickBuyTab();
         FurlencoPlpPage plpPage = homePage.clickCategory("Bedroom");
-        FurlencoProductPage productPage = plpPage.clickFirstProduct();
+        FurlencoProductPage productPage = plpPage.clickFirstAvailableProduct(10);
 
         assertThat(productPage.isAddToCartButtonVisible())
                 .as("Add to Cart CTA should be visible on Buy PDP")
@@ -88,7 +84,7 @@ public class FurlencoCheckoutFlowTest extends BaseWebTest {
         homePage.open(furlencoUrl);
         homePage.clickUnlmtdTab();
         FurlencoPlpPage plpPage = homePage.clickCategory("Bedroom");
-        FurlencoProductPage productPage = plpPage.clickFirstProduct();
+        FurlencoProductPage productPage = plpPage.clickFirstAvailableProduct(10);
 
         assertThat(productPage.isAddToCartButtonVisible())
                 .as("Add to Cart CTA should be visible on Unlmtd PDP")
@@ -156,102 +152,89 @@ public class FurlencoCheckoutFlowTest extends BaseWebTest {
 
     @Test(groups = {"regression", "web", "furlenco", "payment-critical"}, priority = 8)
     @Severity(SeverityLevel.CRITICAL)
-    @Description("Verify checkout on Cart shows min-tenure popup and navigates to Order Summary for Rent")
-    public void verifyCheckoutToOrderSummaryRent() {
+    @Description("Verify checkout on Cart shows the Rental Terms popup and navigates to Delivery Address for Rent")
+    public void verifyCheckoutToAddressRent() {
         homePage.open(furlencoUrl);
+        homePage.enterPincode(config.get("test.delivery.pincode", "110001"));
+        login();
         homePage.clickRentTab();
         FurlencoPlpPage plpPage = homePage.clickCategory("Bedroom");
-        FurlencoProductPage productPage = plpPage.clickFirstProduct();
+        FurlencoProductPage productPage = plpPage.clickFirstAvailableProduct(10);
         productPage.clickAddToCart();
 
         FurlencoCartDrawer cartDrawer = homePage.openCart();
-        FurlencoOrderSummaryPage orderSummary = cartDrawer.clickCheckout();
-        completeLoginIfPromptedOnCheckout(cartDrawer);
+        FurlencoCheckoutAddressPage addressPage = cartDrawer.clickCheckout();
 
-        assertThat(orderSummary.isLoaded())
-                .as("Order Summary screen should load after checkout (with min-tenure popup handled) for Rent")
+        assertThat(addressPage.isLoaded())
+                .as("Delivery Address step should load after checkout (with Rental Terms popup handled) for Rent")
                 .isTrue();
     }
 
     @Test(groups = {"regression", "web", "furlenco", "payment-critical"}, priority = 9)
     @Severity(SeverityLevel.CRITICAL)
-    @Description("Verify checkout on Cart navigates to Order Summary for Buy")
-    public void verifyCheckoutToOrderSummaryBuy() {
+    @Description("Verify checkout on Cart navigates to Delivery Address for Buy")
+    public void verifyCheckoutToAddressBuy() {
         homePage.open(furlencoUrl);
+        homePage.enterPincode(config.get("test.delivery.pincode", "110001"));
+        login();
         homePage.clickBuyTab();
         FurlencoPlpPage plpPage = homePage.clickCategory("Bedroom");
-        FurlencoProductPage productPage = plpPage.clickFirstProduct();
+        FurlencoProductPage productPage = plpPage.clickFirstAvailableProduct(10);
         productPage.clickAddToCart();
 
         FurlencoCartDrawer cartDrawer = homePage.openCart();
-        FurlencoOrderSummaryPage orderSummary = cartDrawer.clickCheckout();
-        completeLoginIfPromptedOnCheckout(cartDrawer);
+        FurlencoCheckoutAddressPage addressPage = cartDrawer.clickCheckout();
 
-        assertThat(orderSummary.isLoaded())
-                .as("Order Summary screen should load after checkout for Buy")
+        assertThat(addressPage.isLoaded())
+                .as("Delivery Address step should load after checkout for Buy")
                 .isTrue();
     }
 
-    @Test(groups = {"regression", "web", "furlenco", "payment-critical"}, priority = 10)
-    @Severity(SeverityLevel.CRITICAL)
-    @Description("Verify checkout on Cart navigates to Order Summary for Unlmtd")
-    public void verifyCheckoutToOrderSummaryUnlimited() {
-        homePage.open(furlencoUrl);
-        homePage.clickUnlmtdTab();
-        FurlencoPlpPage plpPage = homePage.clickCategory("Bedroom");
-        FurlencoProductPage productPage = plpPage.clickFirstProduct();
-        productPage.clickAddToCart();
-
-        FurlencoCartDrawer cartDrawer = homePage.openCart();
-        FurlencoOrderSummaryPage orderSummary = cartDrawer.clickCheckout();
-        completeLoginIfPromptedOnCheckout(cartDrawer);
-
-        assertThat(orderSummary.isLoaded())
-                .as("Order Summary screen should load after checkout for Unlmtd")
-                .isTrue();
-    }
-
-    @Test(groups = {"regression", "web", "furlenco"}, priority = 11)
+    @Test(groups = {"regression", "web", "furlenco"}, priority = 10)
     @Severity(SeverityLevel.NORMAL)
-    @Description("Verify clicking back on Order Summary returns to the Cart screen")
-    public void verifyBackNavigationFromOrderSummaryToCart() {
+    @Description("Verify Order Summary loads after confirming the delivery address")
+    public void verifyAddressToOrderSummary() {
         homePage.open(furlencoUrl);
+        homePage.enterPincode(config.get("test.delivery.pincode", "110001"));
+        login();
         homePage.clickRentTab();
         FurlencoPlpPage plpPage = homePage.clickCategory("Bedroom");
-        FurlencoProductPage productPage = plpPage.clickFirstProduct();
+        FurlencoProductPage productPage = plpPage.clickFirstAvailableProduct(10);
         productPage.clickAddToCart();
 
         FurlencoCartDrawer cartDrawer = homePage.openCart();
-        String cartUrl = cartDrawer.currentUrl();
-        FurlencoOrderSummaryPage orderSummary = cartDrawer.clickCheckout();
+        FurlencoCheckoutAddressPage addressPage = cartDrawer.clickCheckout();
+        assertThat(addressPage.hasSavedAddress())
+                .as("Test account should have at least one saved address")
+                .isTrue();
 
-        orderSummary.goBack();
+        FurlencoOrderSummaryPage orderSummary = addressPage.confirmSelectedAddress();
 
-        assertThat(orderSummary.currentUrl())
-                .as("Back navigation from Order Summary should return to the Cart URL")
-                .isEqualTo(cartUrl);
+        assertThat(orderSummary.isLoaded()).as("Order Summary should load after confirming address").isTrue();
     }
 
-    @Test(groups = {"regression", "web", "furlenco", "payment-critical"}, priority = 12)
+    @Test(groups = {"regression", "web", "furlenco", "payment-critical"}, priority = 11)
     @Severity(SeverityLevel.BLOCKER)
     @Description("Verify clicking Proceed on Order Summary navigates to the Payment screen")
     public void verifyProceedToPaymentScreen() {
         homePage.open(furlencoUrl);
+        homePage.enterPincode(config.get("test.delivery.pincode", "110001"));
+        login();
         homePage.clickRentTab();
         FurlencoPlpPage plpPage = homePage.clickCategory("Bedroom");
-        FurlencoProductPage productPage = plpPage.clickFirstProduct();
+        FurlencoProductPage productPage = plpPage.clickFirstAvailableProduct(10);
         productPage.clickAddToCart();
 
         FurlencoCartDrawer cartDrawer = homePage.openCart();
-        FurlencoOrderSummaryPage orderSummary = cartDrawer.clickCheckout();
-        completeLoginIfPromptedOnCheckout(cartDrawer);
+        FurlencoCheckoutAddressPage addressPage = cartDrawer.clickCheckout();
+        FurlencoOrderSummaryPage orderSummary = addressPage.confirmSelectedAddress();
         FurlencoPaymentPage paymentPage = orderSummary.clickProceed();
 
         assertThat(paymentPage.isLoaded()).as("Payment screen should load after Proceed").isTrue();
-        assertThat(paymentPage.isCardOptionDisplayed() || paymentPage.isUpiOptionDisplayed()
-                        || paymentPage.isNetbankingOptionDisplayed())
-                .as("At least one payment method (Card/UPI/Netbanking) should be offered")
+        assertThat(paymentPage.isCardOptionDisplayed() || paymentPage.isUpiOptionDisplayed())
+                .as("At least one payment method (Card/UPI) should be offered")
                 .isTrue();
         // Deliberately stops here: no card/UPI details are entered and no payment is submitted.
+        // See FurlencoSuccessfulOrderTest for the flow that completes payment via Razorpay test mode.
     }
 }

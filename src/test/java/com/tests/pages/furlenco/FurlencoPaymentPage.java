@@ -3,33 +3,35 @@ package com.tests.pages.furlenco;
 import com.framework.base.BasePage;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
+import com.microsoft.playwright.options.WaitForSelectorState;
 import io.qameta.allure.Step;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Page Object for the Payment screen.
+ * Page Object for the Payment screen, verified live at {@code /my/payment?payment_id=<id>}: a
+ * Razorpay test-mode integration with "UPI" and "Credit Card/Debit Card" tabs (no separate
+ * Netbanking tab was observed — {@link #isNetbankingOptionDisplayed()} is kept as a best-effort,
+ * unverified fallback in case a different vertical/variant offers one).
  * <p>
- * Deliberately observation-only: this class exposes checks for which payment methods are
- * presented (Card / UPI / Netbanking) but never fills card/UPI details or submits a real payment.
- * Automating an actual charge against a live payment gateway is out of scope for this framework
- * layer — if/when Furlenco provides sandbox payment gateway credentials and a documented test-card
- * flow, that belongs in a dedicated, explicitly-reviewed module (see
- * {@code com.tests.api.payment} suggestion in the project README), not here.
+ * Card field names are verified live: {@code cardNumber}, {@code nameOnCard}, {@code validity}
+ * (MM/YY), {@code cvv} (rendered as a password input). Submitting uses Razorpay's own publicly
+ * documented generic test card by default (never a real card) — see
+ * {@code test.payment.card.*} in the environment properties files.
  */
 public class FurlencoPaymentPage extends BasePage {
 
     private static final Logger LOGGER = LogManager.getLogger(FurlencoPaymentPage.class);
 
-    private static final String PAYMENT_CONTAINER =
-            "[data-slot='payment'], main:has-text('Payment'), main:has-text('Choose Payment')";
-    // Note: the bare `text=` engine prefix cannot be mixed with plain CSS clauses in the same
-    // comma-separated selector list (throws a parse error) — use the composable `:text()` pseudo
-    // instead, verified live.
-    private static final String CARD_OPTION = ":text(\"Card\"), [data-slot='payment-card'], button:has-text('Card')";
-    private static final String UPI_OPTION = ":text(\"UPI\"), [data-slot='payment-upi'], button:has-text('UPI')";
-    private static final String NETBANKING_OPTION =
-            ":text(\"Netbanking\"), :text(\"Net Banking\"), [data-slot='payment-netbanking'], button:has-text('Netbanking')";
+    private static final String PAYMENT_CONTAINER = ":text(\"Payment Options\")";
+    private static final String UPI_TAB = "label:has-text('UPI')";
+    private static final String CARD_TAB = "label:has-text('Credit Card'), label:has-text('Debit Card')";
+    private static final String CARD_NUMBER_INPUT = "input[name='cardNumber']";
+    private static final String NAME_ON_CARD_INPUT = "input[name='nameOnCard']";
+    private static final String VALIDITY_INPUT = "input[name='validity']";
+    private static final String CVV_INPUT = "input[name='cvv']";
+    private static final String PAY_NOW_BUTTON = "button:has-text('PAY NOW'), button:has-text('Pay ₹')";
+    private static final String NETBANKING_OPTION = "label:has-text('Netbanking'), label:has-text('Net Banking')";
 
     public FurlencoPaymentPage(Page page) {
         super(page);
@@ -46,13 +48,13 @@ public class FurlencoPaymentPage extends BasePage {
 
     @Step("Check if Card payment option is offered")
     public boolean isCardOptionDisplayed() {
-        Locator option = page.locator(CARD_OPTION);
+        Locator option = page.locator(CARD_TAB);
         return option.count() > 0 && option.first().isVisible();
     }
 
     @Step("Check if UPI payment option is offered")
     public boolean isUpiOptionDisplayed() {
-        Locator option = page.locator(UPI_OPTION);
+        Locator option = page.locator(UPI_TAB);
         return option.count() > 0 && option.first().isVisible();
     }
 
@@ -60,5 +62,30 @@ public class FurlencoPaymentPage extends BasePage {
     public boolean isNetbankingOptionDisplayed() {
         Locator option = page.locator(NETBANKING_OPTION);
         return option.count() > 0 && option.first().isVisible();
+    }
+
+    @Step("Select Credit/Debit Card as the payment method")
+    public FurlencoPaymentPage selectCardPaymentMethod() {
+        LOGGER.info("Selecting Card payment method");
+        page.locator(CARD_TAB).first().click();
+        page.locator(CARD_NUMBER_INPUT).waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE));
+        return this;
+    }
+
+    /**
+     * Fills the Razorpay test-mode card form. Callers should pass Razorpay's own published test
+     * card details (see {@code test.payment.card.*} config) — never a real card.
+     */
+    @Step("Fill card details and submit payment")
+    public FurlencoOrderResultPage payWithCard(String cardNumber, String nameOnCard, String validity, String cvv) {
+        LOGGER.info("Filling card payment form (values not logged)");
+        page.locator(CARD_NUMBER_INPUT).fill(cardNumber);
+        page.locator(NAME_ON_CARD_INPUT).fill(nameOnCard);
+        page.locator(VALIDITY_INPUT).fill(validity);
+        page.locator(CVV_INPUT).fill(cvv);
+        page.locator(PAY_NOW_BUTTON).first().click();
+        page.waitForLoadState();
+        page.waitForTimeout(4000);
+        return new FurlencoOrderResultPage(page);
     }
 }

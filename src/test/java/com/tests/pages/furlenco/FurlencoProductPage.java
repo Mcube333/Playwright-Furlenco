@@ -42,6 +42,26 @@ public class FurlencoProductPage extends BasePage {
         return page.locator(ADD_TO_CART_BTN).first().isVisible();
     }
 
+    /**
+     * Checks if Add to Cart is enabled, polling briefly first — verified live that the button can
+     * render disabled momentarily while price/availability data is still loading, then become
+     * enabled a moment later, so a single instant check can false-negative.
+     */
+    @Step("Check if Add to Cart / Rent CTA button is enabled (in stock / no variant required)")
+    public boolean isAddToCartButtonEnabled() {
+        Locator btn = page.locator(ADD_TO_CART_BTN).first();
+        if (btn.count() == 0) {
+            return false;
+        }
+        for (int i = 0; i < 6; i++) {
+            if (btn.isVisible() && btn.isEnabled()) {
+                return true;
+            }
+            page.waitForTimeout(500);
+        }
+        return false;
+    }
+
     @Step("Click Add to Cart / Rent CTA button")
     public void clickAddToCart() {
         LOGGER.info("Clicking Add to Cart / Rent button");

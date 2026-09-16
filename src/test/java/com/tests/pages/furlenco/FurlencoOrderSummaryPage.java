@@ -9,27 +9,25 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Page Object for the "Order Summary" step of checkout. Verified against a live session: this is
- * NOT a separate route — the Furlenco cart at {@code /cart} already shows the price breakup
- * ("Rent Cost Breakup" / "View Breakup" / "Total Cost") and the {@code Pay ₹<amount>} button
- * inline, so this class models that same page's summary/proceed state after login rather than a
- * distinct screen. {@code clickProceed()} re-clicks Pay now that the session is authenticated.
+ * Page Object for the "Order Summary" checkout step, verified live — reached after confirming a
+ * delivery address ({@link FurlencoCheckoutAddressPage}). Shows the item cart, value-added
+ * services, coupons and price breakup ("&lt;Vertical&gt; Cost Breakup" / "Total Cost"), with a
+ * {@code PROCEED} button that moves to {@link FurlencoPaymentPage}.
  */
 public class FurlencoOrderSummaryPage extends BasePage {
 
     private static final Logger LOGGER = LogManager.getLogger(FurlencoOrderSummaryPage.class);
 
-    private static final String PRICE_BREAKDOWN = ":text(\"Rent Cost Breakup\"), :text(\"Total Cost\")";
-    private static final String PROCEED_BUTTON = "button:has-text('Pay ₹'), button:has-text('Proceed')";
+    private static final String PRICE_BREAKDOWN = ":text(\"Cost Breakup\"), :text(\"Total Cost\")";
+    private static final String PROCEED_BUTTON = "button:has-text('PROCEED'), button:has-text('Pay ₹'), button:has-text('Proceed')";
 
     public FurlencoOrderSummaryPage(Page page) {
         super(page);
     }
 
-    @Step("Check if Order Summary (price breakup on Cart) is loaded")
+    @Step("Check if Order Summary is loaded")
     public boolean isLoaded() {
-        boolean urlMatches = currentUrl().contains("/cart") || currentUrl().contains("/checkout")
-                || currentUrl().contains("/order-summary");
+        boolean urlMatches = currentUrl().contains("/checkout") || currentUrl().contains("/cart");
         boolean breakdownVisible = isPriceBreakdownDisplayed();
         LOGGER.info("Order Summary loaded check: urlMatches={}, breakdownVisible={}", urlMatches, breakdownVisible);
         return urlMatches && breakdownVisible;
@@ -41,14 +39,14 @@ public class FurlencoOrderSummaryPage extends BasePage {
         return breakdown.count() > 0 && breakdown.first().isVisible();
     }
 
-    @Step("Click Pay/Proceed to move to Payment")
+    @Step("Click Proceed to move to Payment")
     public FurlencoPaymentPage clickProceed() {
-        LOGGER.info("Clicking Pay/Proceed on Order Summary");
+        LOGGER.info("Clicking Proceed on Order Summary");
         Locator proceedBtn = page.locator(PROCEED_BUTTON).first();
         proceedBtn.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE));
         proceedBtn.click();
         page.waitForLoadState();
-        page.waitForTimeout(800);
+        page.waitForTimeout(2000);
         return new FurlencoPaymentPage(page);
     }
 }
