@@ -17,6 +17,11 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
         <playwright.version>1.47.0</playwright.version>
+        <appium.version>9.3.0</appium.version>
+        <!-- appium-java-client 9.3.0 declares a [4.19.0,5.0) Selenium range but references
+             org.openqa.selenium.ContextAware, which was removed from Selenium starting around
+             4.3x — pin to a version inside that range known to still have it. -->
+        <selenium.version>4.25.0</selenium.version>
         <testng.version>7.10.2</testng.version>
         <allure.version>2.29.0</allure.version>
         <aspectj.version>1.9.24</aspectj.version>
@@ -42,6 +47,33 @@
             <groupId>com.microsoft.playwright</groupId>
             <artifactId>playwright</artifactId>
             <version>${playwright.version}</version>
+        </dependency>
+
+        <!-- Appium: native Android/iOS app automation (separate from Playwright's Web/API coverage).
+             Pulls in the selenium-api/-remote-driver/-support classes (By, WebElement, WebDriverWait,
+             etc.) it needs transitively — no separate selenium-java dependency, which would pin an
+             older Selenium version and conflict with what this java-client version requires. -->
+        <dependency>
+            <groupId>io.appium</groupId>
+            <artifactId>java-client</artifactId>
+            <version>${appium.version}</version>
+        </dependency>
+        <!-- Direct declarations pin the Selenium modules java-client pulls in transitively
+             (Maven's nearest-wins resolution then prefers these over 9.3.0's newer transitive pull). -->
+        <dependency>
+            <groupId>org.seleniumhq.selenium</groupId>
+            <artifactId>selenium-api</artifactId>
+            <version>${selenium.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.seleniumhq.selenium</groupId>
+            <artifactId>selenium-remote-driver</artifactId>
+            <version>${selenium.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.seleniumhq.selenium</groupId>
+            <artifactId>selenium-support</artifactId>
+            <version>${selenium.version}</version>
         </dependency>
 
         <!-- TestNG -->

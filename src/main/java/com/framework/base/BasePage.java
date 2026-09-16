@@ -64,6 +64,13 @@ public abstract class BasePage {
         page.locator(selector).waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.HIDDEN));
     }
 
+    @Step("Navigate back in browser history")
+    public void goBack() {
+        LOGGER.info("Navigating back");
+        page.goBack();
+        page.waitForLoadState();
+    }
+
     public String currentUrl() {
         return page.url();
     }

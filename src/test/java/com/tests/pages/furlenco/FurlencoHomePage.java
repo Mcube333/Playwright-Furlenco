@@ -27,8 +27,14 @@ public class FurlencoHomePage extends BasePage {
     private static final String UNLMTD_NAV_LINK = "header a:has-text('UNLMTD')";
     private static final String CART_BUTTON = "button[aria-label='Cart']";
     private static final String WISHLIST_BUTTON = "button[aria-label='Wishlist']";
+    private static final String ACCOUNT_MENU_BUTTON = "button[aria-label='Account menu']";
     private static final String HELP_CENTER_BUTTON = "a:has-text('Help Center'), a[href*='help.furlenco.com']";
     private static final String CITIES_DELIVER_SECTION = "text=CITIES WE DELIVER TO";
+    // Category cards are plain divs with an onClick handler (not <a> tags) — text-match the card's
+    // label directly, verified against a live session.
+    private static final String HOME_CATEGORY_CARD_LABEL = "p.text-center:text-is('%s')";
+    private static final String ACCOUNT_HOVER_CARD_CONTENT = "[data-slot='hover-card-content']";
+    private static final String ACCOUNT_HOVER_CARD_LOGIN = "[data-slot='hover-card-content'] p:has-text('Login')";
 
     public FurlencoHomePage(Page page) {
         super(page);
@@ -37,6 +43,7 @@ public class FurlencoHomePage extends BasePage {
     @Step("Navigate to Furlenco home page: {url}")
     public FurlencoHomePage open(String url) {
         LOGGER.info("Opening Furlenco home page: {}", url);
+        FurlencoExperiments.pinIfEnabled(page.context(), url);
         navigateTo(url);
         page.waitForLoadState();
         dismissLocationModalIfOpen();
@@ -171,5 +178,40 @@ public class FurlencoHomePage extends BasePage {
     @Step("Check if Cities We Deliver To section is displayed")
     public boolean isCitiesDeliverSectionDisplayed() {
         return page.locator(CITIES_DELIVER_SECTION).first().isVisible();
+    }
+
+    @Step("Click a product category card by visible text: {categoryName}")
+    public FurlencoPlpPage clickCategory(String categoryName) {
+        LOGGER.info("Clicking category card: {}", categoryName);
+        dismissLocationModalIfOpen();
+        // Move the mouse to a neutral spot first: a lingering hover-triggered nav mega-menu
+        // (Radix popper, e.g. RENT's category flyout) can otherwise sit on top of the target card
+        // and intercept the click — verified against a live session.
+        page.mouse().move(0, 0);
+        Locator category = page.locator(String.format(HOME_CATEGORY_CARD_LABEL, categoryName)).first();
+        category.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE));
+        category.scrollIntoViewIfNeeded();
+        category.click(new Locator.ClickOptions().setForce(true));
+        page.waitForLoadState();
+        return new FurlencoPlpPage(page);
+    }
+
+    /**
+     * Opens the Account menu (a Radix HoverCard — opens on hover, not click) and clicks "Login"
+     * inside it. Verified against a live session: the Account menu button itself never navigates
+     * or opens a dialog on click; only hovering reveals the "Login" entry.
+     */
+    @Step("Open Account menu (hover) and click Login")
+    public FurlencoLoginPage openLogin() {
+        LOGGER.info("Hovering Account menu to reveal Login entry");
+        dismissLocationModalIfOpen();
+        Locator accountMenu = page.locator(ACCOUNT_MENU_BUTTON).first();
+        // Force: a transient toast/backdrop (e.g. "Location has been updated") can otherwise fail
+        // Playwright's "receives pointer events" actionability check even though the button is
+        // visible and functional — verified against a live session.
+        accountMenu.hover(new Locator.HoverOptions().setForce(true));
+        page.locator(ACCOUNT_HOVER_CARD_CONTENT).waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE));
+        page.locator(ACCOUNT_HOVER_CARD_LOGIN).first().click();
+        return new FurlencoLoginPage(page);
     }
 }

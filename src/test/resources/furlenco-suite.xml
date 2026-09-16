@@ -12,6 +12,10 @@
             <class name="com.tests.web.furlenco.FurlencoHomePageTest"/>
             <class name="com.tests.web.furlenco.FurlencoSearchAndBrowseTest"/>
             <class name="com.tests.web.furlenco.FurlencoCartFlowTest"/>
+            <class name="com.tests.web.furlenco.FurlencoLoginTest"/>
+            <class name="com.tests.web.furlenco.FurlencoPlpNavigationTest"/>
+            <class name="com.tests.web.furlenco.FurlencoPdpNavigationTest"/>
+            <class name="com.tests.web.furlenco.FurlencoCheckoutFlowTest"/>
         </classes>
     </test>
 
