@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<!--
+  Native Android/iOS app suite (Appium). All tests here are currently `enabled = false` — see
+  FurlencoMobileHomeScreen javadoc for why (no verified locators, no device/APK access). Requires
+  a running Appium server (appium.server.url) and a device/emulator with the Furlenco app
+  installed before any test can be enabled.
+-->
+<suite name="Furlenco Mobile App Automation Suite" parallel="none">
+
+    <listeners>
+        <listener class-name="com.framework.listeners.TestListener"/>
+        <listener class-name="com.framework.listeners.RetryTransformer"/>
+    </listeners>
+
+    <test name="Furlenco Mobile Flows">
+        <classes>
+            <class name="com.tests.mobile.furlenco.FurlencoMobileNavigationTest"/>
+        </classes>
+    </test>
+
+</suite>
