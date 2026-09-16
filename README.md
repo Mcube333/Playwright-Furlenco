@@ -174,6 +174,31 @@ ai.agent.max.actions=0
   it. `AgentExecutionGuard` is a fail-closed permission boundary: no configuration combination
   makes an action executable today — there is no action executor. `SelfHealingRecommendationService`
   output is for human review only; nothing is applied automatically.
+- **Explicit recommendation & human-approval workflow** (`com.framework.ai.orchestration`) — sits
+  on top of the agentic foundation and is just as explicit: `AgentOrchestrationService`/
+  `AgentRecommendationConsumer` compose the observe → reason → propose pipeline into one call, and
+  `AgentApprovalService`/`AgentApprovalRecordStore`/`AgentApprovalSummaryReporter` let a human
+  record and query a `PENDING`/`APPROVED`/`REJECTED` decision about each recommendation. An
+  `APPROVED` record is a decision record only — it is never executed, never bypasses
+  `AgentExecutionGuard`, and never applies anything to source, a Page Object, or a live page.
+
+  ```java
+  FailureDiagnosis diagnosis = new FailureDiagnosisHelper().diagnose(testResult);
+
+  AgentRecommendationConsumer consumer = new AgentRecommendationConsumer(new AgentOrchestrationService());
+  List<SelfHealingRecommendation> recommendations = consumer.consume(diagnosis);
+
+  AgentApprovalService approvals = new AgentApprovalService();
+  AgentApprovalRecord decision = approvals.approve(recommendations.get(0), "Verified on staging.", "qa.jane");
+
+  AgentApprovalRecordStore store = new AgentApprovalRecordStore();
+  store.add(decision);
+
+  System.out.println(new AgentApprovalSummaryReporter(store).summarize());
+  ```
+
+  See `FurlencoApprovalWorkflowSampleTest` (in `src/test/java/com/tests/ai/orchestration/`) for a
+  full, runnable walkthrough of this chain against a realistic Furlenco cart-button locator drift.
 
 Every evidence status (`VERIFIED` / `INFERRED` / `UNVERIFIED` / `MISSING`) comes from a
 deterministic check (DOM matching, a live Playwright read), never from AI confidence or wording —
