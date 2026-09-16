@@ -24,8 +24,10 @@ import org.testng.annotations.Test;
  * End-to-end "successful order" flow for Buy and Rent: Login -&gt; Add to Cart -&gt; Checkout -&gt;
  * Delivery Address -&gt; Order Summary -&gt; Payment (Razorpay test mode, card) -&gt; Order Success.
  * <p>
- * Uses Razorpay's own publicly documented generic test card ({@code test.payment.card.*} in the
- * environment properties) — never a real card, and Razorpay test mode never moves real money.
+ * Uses Razorpay's own officially published Indian-payments test card (Visa Debit, {@code
+ * test.payment.card.*} in the environment properties — other networks/card types from the same
+ * published set are also available under {@code test.payment.card.<network>.*}) — never a real
+ * card, and Razorpay test mode never moves real money.
  * <p>
  * <b>Creates a real order record in the target environment every run</b> — this is inherent to
  * testing order placement and is expected/acceptable on preprod, but be aware this isn't a

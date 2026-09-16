@@ -130,7 +130,23 @@ public class FurlencoLoginPage extends BasePage {
     @Step("Check if login succeeded")
     public boolean isLoggedIn() {
         page.waitForTimeout(500);
-        return !isOpen();
+        return !isOpen() && !isNewUserSignupPromptDisplayed();
+    }
+
+    /**
+     * A phone number with no existing account redirects to a "Hey, Looks like you are new here!"
+     * name/email signup step instead of completing login directly — check this after
+     * {@link #enterOtpAndSubmit(String)} before assuming {@link #isLoggedIn()} means an existing
+     * account was authenticated.
+     */
+    @Step("Check if the OTP submission redirected to new-user signup instead of logging in")
+    public boolean isNewUserSignupPromptDisplayed() {
+        return new FurlencoNewUserSignupPage(page).isLoaded();
+    }
+
+    @Step("Get the new-user signup page after OTP submission")
+    public FurlencoNewUserSignupPage getNewUserSignupPage() {
+        return new FurlencoNewUserSignupPage(page);
     }
 
     @Step("Check if a login error is displayed")
