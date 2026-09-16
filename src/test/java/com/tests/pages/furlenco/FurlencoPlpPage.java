@@ -83,4 +83,38 @@ public class FurlencoPlpPage extends BasePage {
         page.waitForLoadState();
         return new FurlencoProductPage(page);
     }
+
+    /**
+     * Opens product cards in order until one has an enabled Add to Cart button, up to {@code
+     * maxAttempts}. Verified live: the plain "first product" on a PLP can have Add to Cart
+     * disabled (out of stock, or requires a variant selection this framework doesn't drive) —
+     * callers that need to actually add something to cart (checkout/order-placement flows) should
+     * use this instead of {@link #clickFirstProduct()}.
+     */
+    @Step("Click first available (purchasable) product card on PLP")
+    public FurlencoProductPage clickFirstAvailableProduct(int maxAttempts) {
+        for (int i = 0; i < maxAttempts; i++) {
+            Locator card = page.locator(PRODUCT_CARDS).nth(i);
+            if (card.count() == 0) {
+                break;
+            }
+            LOGGER.info("Trying product card index {} for availability", i);
+            card.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE));
+            card.click();
+            page.waitForLoadState();
+            // Verified live: Add to Cart can stay stuck disabled after the SPA's client-side
+            // navigation from a PLP card click, but is correctly enabled after a full page load of
+            // the same product URL — force one rather than trusting the client-side transition.
+            page.reload();
+            page.waitForLoadState();
+            FurlencoProductPage productPage = new FurlencoProductPage(page);
+            if (productPage.isAddToCartButtonEnabled()) {
+                return productPage;
+            }
+            LOGGER.info("Product at index {} has Add to Cart disabled, trying next", i);
+            productPage.goBack();
+        }
+        throw new IllegalStateException(
+                "No purchasable product (enabled Add to Cart) found in the first " + maxAttempts + " cards on this PLP.");
+    }
 }

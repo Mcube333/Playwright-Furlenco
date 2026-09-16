@@ -16,6 +16,7 @@
             <class name="com.tests.web.furlenco.FurlencoPlpNavigationTest"/>
             <class name="com.tests.web.furlenco.FurlencoPdpNavigationTest"/>
             <class name="com.tests.web.furlenco.FurlencoCheckoutFlowTest"/>
+            <class name="com.tests.web.furlenco.FurlencoB2BSmokeTest"/>
         </classes>
     </test>
 

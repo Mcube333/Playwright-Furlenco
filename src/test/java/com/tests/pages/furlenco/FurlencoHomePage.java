@@ -25,6 +25,7 @@ public class FurlencoHomePage extends BasePage {
     private static final String RENT_NAV_LINK = "header a:has-text('RENT')";
     private static final String BUY_NAV_LINK = "header a:has-text('BUY')";
     private static final String UNLMTD_NAV_LINK = "header a:has-text('UNLMTD')";
+    private static final String B2B_NAV_LINK = "header a:has-text('B2B')";
     private static final String CART_BUTTON = "button[aria-label='Cart']";
     private static final String WISHLIST_BUTTON = "button[aria-label='Wishlist']";
     private static final String ACCOUNT_MENU_BUTTON = "button[aria-label='Account menu']";
@@ -106,6 +107,24 @@ public class FurlencoHomePage extends BasePage {
         return this;
     }
 
+    /**
+     * Sets delivery location by pincode instead of picking a listed city — useful when the
+     * currently-selected pincode has poor product availability (verified live: several Bedroom
+     * category products under one pincode showed a consistently disabled Add to Cart, most likely
+     * a delivery-serviceability/inventory gap for that pincode rather than a bug).
+     */
+    @Step("Enter delivery pincode: {pincode}")
+    public FurlencoHomePage enterPincode(String pincode) {
+        LOGGER.info("Entering delivery pincode: {}", pincode);
+        openCityModal();
+        Locator pincodeInput = page.locator("input[placeholder*='pincode' i]").first();
+        pincodeInput.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE));
+        pincodeInput.fill(pincode);
+        pincodeInput.press("Enter");
+        page.waitForTimeout(1500);
+        return this;
+    }
+
     @Step("Search for product: {query}")
     public FurlencoSearchResultsPage searchProduct(String query) {
         LOGGER.info("Searching for: {}", query);
@@ -151,6 +170,28 @@ public class FurlencoHomePage extends BasePage {
         page.locator(UNLMTD_NAV_LINK).first().click(new Locator.ClickOptions().setForce(true));
         page.waitForLoadState();
         return this;
+    }
+
+    /**
+     * Clicks B2B in the header, which links to a separate domain (business.furlenco.com). Returns
+     * the resulting page's URL for a caller to assert on, since that site has no page objects of
+     * its own here (out of scope — see project README "Known gaps").
+     */
+    @Step("Click B2B in header")
+    public String clickB2B() {
+        LOGGER.info("Clicking B2B nav link");
+        dismissLocationModalIfOpen();
+        Locator b2bLink = page.locator(B2B_NAV_LINK).first();
+        String target = b2bLink.getAttribute("target");
+        if ("_blank".equals(target)) {
+            // External-domain link opens a new tab — the current page's URL never changes.
+            Page popup = page.waitForPopup(b2bLink::click);
+            popup.waitForLoadState();
+            return popup.url();
+        }
+        b2bLink.click();
+        page.waitForLoadState();
+        return page.url();
     }
 
     @Step("Open Cart Drawer")
