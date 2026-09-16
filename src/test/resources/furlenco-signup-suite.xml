@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<!--
+  Kept separate from furlenco-suite.xml deliberately: every test here creates a real new user
+  account (via a freshly-generated random phone number) on the target environment. Acceptable on
+  preprod, but not a side-effect-free read-only suite — run it explicitly, e.g.:
+    mvn test -DsuiteXmlFile=src/test/resources/furlenco-signup-suite.xml -Denv=preprod
+-->
+<suite name="Furlenco New User Signup Suite (mutating — run explicitly)" parallel="none">
+
+    <listeners>
+        <listener class-name="com.framework.listeners.TestListener"/>
+        <listener class-name="com.framework.listeners.RetryTransformer"/>
+    </listeners>
+
+    <test name="Furlenco New User Signup">
+        <classes>
+            <class name="com.tests.web.furlenco.FurlencoNewUserSignupTest"/>
+        </classes>
+    </test>
+
+</suite>
