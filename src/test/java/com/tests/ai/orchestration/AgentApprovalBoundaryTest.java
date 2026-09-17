@@ -268,7 +268,10 @@ public class AgentApprovalBoundaryTest {
 
     @Test
     public void testNoExecutionOrToolRegistryClassWasIntroducedAlongsideApproval() {
-        assertThat(classExists("com.framework.ai.orchestration.AgentActionExecutor")).isFalse();
+        // Phase 10 Step 4 legitimately introduced com.framework.ai.orchestration.AgentActionExecutor
+        // as an explicit, non-executing execution-boundary CONTRACT (see AgentActionExecutorTest/
+        // AgentActionExecutorBoundaryTest for its own extensive safety coverage) — that one class
+        // name is no longer asserted absent here; every other check in this method still applies.
         assertThat(classExists("com.framework.ai.orchestration.AgentToolRegistry")).isFalse();
         assertThat(classExists("com.framework.ai.orchestration.AgentManager")).isFalse();
         assertThat(classExists("com.framework.ai.orchestration.AgentController")).isFalse();
