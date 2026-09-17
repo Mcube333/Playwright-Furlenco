@@ -53,11 +53,15 @@ public class FurlencoProductPage extends BasePage {
         if (btn.count() == 0) {
             return false;
         }
-        for (int i = 0; i < 6; i++) {
+        // Verified live: after a full page load/reload, this app's client-side data fetch
+        // (price/availability) can take noticeably longer than a few seconds before the button
+        // flips from its initial disabled state to enabled — a short poll window previously
+        // false-negatived here. 20s total, polled every second.
+        for (int i = 0; i < 20; i++) {
             if (btn.isVisible() && btn.isEnabled()) {
                 return true;
             }
-            page.waitForTimeout(500);
+            page.waitForTimeout(1000);
         }
         return false;
     }
