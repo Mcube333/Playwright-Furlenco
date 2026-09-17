@@ -85,34 +85,35 @@ public class FurlencoPlpPage extends BasePage {
     }
 
     /**
-     * Opens product cards in order until one has an enabled Add to Cart button, up to {@code
-     * maxAttempts}. Verified live: the plain "first product" on a PLP can have Add to Cart
-     * disabled (out of stock, or requires a variant selection this framework doesn't drive) —
-     * callers that need to actually add something to cart (checkout/order-placement flows) should
-     * use this instead of {@link #clickFirstProduct()}.
+     * Opens product URLs in order until one has an enabled Add to Cart button, up to {@code
+     * maxAttempts}.
+     * <p>
+     * <b>Verified live root cause this works around:</b> clicking a PLP product card
+     * ({@code Locator.click()}) reliably fails to navigate at all on this app — the page silently
+     * stays on the PLP's own URL, confirmed by logging {@code page.url()} immediately after the
+     * click. Every earlier "Add to Cart is disabled" failure traced back to this: the code was
+     * checking for an Add to Cart button while still sitting on the listing page. A direct page
+     * navigation to the product's own URL (extracted from the card's real {@code href} via the
+     * DOM, not the possibly-relative attribute) is what every successful manual verification of
+     * this app used, and is what actually reaches the product page reliably.
      */
     @Step("Click first available (purchasable) product card on PLP")
     public FurlencoProductPage clickFirstAvailableProduct(int maxAttempts) {
-        for (int i = 0; i < maxAttempts; i++) {
-            Locator card = page.locator(PRODUCT_CARDS).nth(i);
-            if (card.count() == 0) {
-                break;
+        Locator cards = page.locator(PRODUCT_CARDS);
+        int count = Math.min(maxAttempts, cards.count());
+        for (int i = 0; i < count; i++) {
+            Object href = cards.nth(i).evaluate("el => el.href");
+            if (href == null || href.toString().isBlank()) {
+                continue;
             }
-            LOGGER.info("Trying product card index {} for availability", i);
-            card.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE));
-            card.click();
-            page.waitForLoadState();
-            // Verified live: Add to Cart can stay stuck disabled after the SPA's client-side
-            // navigation from a PLP card click, but is correctly enabled after a full page load of
-            // the same product URL — force one rather than trusting the client-side transition.
-            page.reload();
+            LOGGER.info("Trying product URL (index {}): {}", i, href);
+            page.navigate(href.toString());
             page.waitForLoadState();
             FurlencoProductPage productPage = new FurlencoProductPage(page);
             if (productPage.isAddToCartButtonEnabled()) {
                 return productPage;
             }
             LOGGER.info("Product at index {} has Add to Cart disabled, trying next", i);
-            productPage.goBack();
         }
         throw new IllegalStateException(
                 "No purchasable product (enabled Add to Cart) found in the first " + maxAttempts + " cards on this PLP.");
