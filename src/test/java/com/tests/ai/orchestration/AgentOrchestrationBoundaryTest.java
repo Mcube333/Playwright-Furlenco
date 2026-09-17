@@ -194,7 +194,11 @@ public class AgentOrchestrationBoundaryTest {
 
     @Test
     public void testNoActionExecutorClassWasIntroducedAlongsideTheOrchestrator() {
-        assertThat(classExists("com.framework.ai.orchestration.AgentActionExecutor")).isFalse();
+        // Phase 10 Step 4 legitimately introduced com.framework.ai.orchestration.AgentActionExecutor
+        // as an explicit, non-executing execution-boundary CONTRACT (see AgentActionExecutorTest/
+        // AgentActionExecutorBoundaryTest for its own extensive safety coverage) — this assertion
+        // is narrowed to the one path that was never authorized: a real executor living in the
+        // Phase 8 agent package itself.
         assertThat(classExists("com.framework.ai.agent.AgentActionExecutor")).isFalse();
     }
 
