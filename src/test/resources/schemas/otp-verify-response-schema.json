@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["success", "data"],
+  "properties": {
+    "success": { "type": "boolean" },
+    "data": {
+      "type": "object",
+      "required": ["user"],
+      "properties": {
+        "has_registered": { "type": "boolean" },
+        "user": {
+          "type": "object",
+          "required": ["id", "session_token"],
+          "properties": {
+            "id": { "type": "integer" },
+            "identifier": { "type": "string" },
+            "is_logged_in": { "type": "boolean" },
+            "contact_no": { "type": "string" },
+            "session_token": {
+              "type": "object",
+              "required": ["token"],
+              "properties": {
+                "city_id": { "type": "integer" },
+                "expiry": { "type": "string" },
+                "medium": { "type": "string" },
+                "token": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

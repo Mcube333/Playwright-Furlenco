@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["success", "data"],
+  "properties": {
+    "success": { "type": "boolean" },
+    "data": {
+      "type": "object",
+      "required": ["nextStep", "userSelectionDetails"],
+      "properties": {
+        "isFullTermination": { "type": "boolean" },
+        "nextStep": { "type": "string" },
+        "userSelectionDetails": {
+          "type": "object",
+          "required": ["products"],
+          "properties": {
+            "products": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["id", "type"],
+                "properties": {
+                  "id": { "type": "integer" },
+                  "type": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

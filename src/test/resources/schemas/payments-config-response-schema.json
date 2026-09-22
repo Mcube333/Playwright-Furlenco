@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["success", "data"],
+  "properties": {
+    "success": { "type": "boolean" },
+    "data": {
+      "type": "object",
+      "required": ["payment", "paymentMethods"],
+      "properties": {
+        "payment": {
+          "type": "object",
+          "required": ["id", "amount", "currency"],
+          "properties": {
+            "id": { "type": "integer" },
+            "amount": { "type": "string" },
+            "currency": { "type": "string" },
+            "status": { "type": "integer" }
+          }
+        },
+        "paymentMethods": { "type": "array" }
+      }
+    }
+  }
+}
