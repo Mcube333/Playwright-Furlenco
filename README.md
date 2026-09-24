@@ -1,145 +1,209 @@
-# Java + Playwright Web & API Automation Framework
+# Playwright-Furlenco
 
-Unified automation framework for **Web UI** and **API** testing using Playwright for Java, TestNG,
-Allure reporting, and Log4j2 logging. Built to support parallel execution, environment-based config,
-data-driven testing, JSON schema validation, and backend (DB) validation.
+A Java-based test automation framework for reliable **web UI, API, and native mobile** coverage. The framework combines Playwright for browser and API automation, TestNG for suite orchestration, Allure for reporting, Log4j2 for diagnostics, Appium for native mobile readiness, and reusable utilities for data, schema, and database validation.
 
-## Why Playwright for API tests instead of REST Assured?
+> **Repository status:** The native mobile/Appium module is scaffolded and covered by a disabled suite until verified Furlenco locators, an APK, and a connected device/emulator are available. Web and API automation are the currently executable paths.
 
-This framework uses Playwright's native `APIRequestContext` for API testing rather than REST Assured.
-The main reason: it lets Web and API tests **share session/auth state** (cookies, storage state) —
-useful for hybrid flows like seeding an order via API and verifying it in the UI, or logging in via
-UI and then hitting authenticated APIs directly. It also means one HTTP client stack to maintain,
-not two.
+## What this framework provides
 
----
+- **Web UI automation** with Playwright for Java, Page Objects, auto-waiting, browser contexts, and parallel TestNG execution.
+- **API automation** through Playwright `APIRequestContext`, allowing API and UI flows to share authentication/session state without maintaining a second HTTP client stack.
+- **Native mobile foundation** through Appium Java Client for Android/iOS scenarios; this is separate from Playwright's mobile-web/device emulation.
+- **Environment-based configuration** for `qa`, `staging`, `preprod`, and `prod`, with runtime system properties and environment variables taking precedence over checked-in defaults.
+- **Data-driven testing** using JSON, CSV, and Excel test data sources.
+- **Contract validation** with JSON Schema validation for API responses.
+- **Database validation** using HikariCP and PostgreSQL connectivity.
+- **Test diagnostics** with Log4j2, retry handling, screenshots/traces where configured, and Allure attachments.
+- **AI-assisted QA analysis** that is additive, opt-in, sanitized, and fail-closed; recommendations are advisory and are not automatically applied.
+- **CI execution** through GitHub Actions with selectable environment and suite inputs and downloadable Allure/log artifacts.
 
-## 1. Project Structure
+## Technology stack
 
-```
-automation-framework/
+| Area | Technology |
+| --- | --- |
+| Language | Java (Maven compiler release is currently 25) |
+| Build | Maven Wrapper / Maven 3.9+ |
+| Web and API | Playwright for Java 1.47.0 |
+| Native mobile | Appium Java Client 9.3.0 with Selenium 4.25.0 |
+| Test runner | TestNG 7.10.2 |
+| Reporting | Allure 2.29.0 and Allure Maven plugin |
+| Logging | Log4j2 2.24.1 |
+| Serialization | Jackson 2.17.2 |
+| Data | Apache Commons CSV 1.11.0 and Apache POI 5.3.0 |
+| API contracts | NetworkNT JSON Schema Validator 1.5.1 |
+| Database | HikariCP 6.0.0 and PostgreSQL JDBC 42.7.4 |
+| Assertions | AssertJ 3.26.3 |
+
+## Project layout
+
+```text
+.
 ├── pom.xml
-├── src/main/java/com/framework/       # Framework core (not test-specific)
-│   ├── config/ConfigManager.java      # Env-based config loader (system prop > env var > .properties)
-│   ├── driver/PlaywrightManager.java  # ThreadLocal Playwright/Browser/Context/Page lifecycle
-│   ├── api/                           # APIClientManager, APIClient, APIResponse, ApiAssertions
-│   ├── base/BasePage.java             # Common Page Object actions (click/fill/getText/waits)
-│   ├── listeners/                     # TestListener, RetryAnalyzer, RetryTransformer
-│   ├── utils/                         # JsonUtils, WaitUtils, ExcelUtils, DateUtils, DBUtils
-│   └── ai/                            # AI-assisted QA layer — see §8. Additive, all OFF by default
-│       ├── config/AiConfig.java       # Every AI/agent feature flag (defaults: disabled/0)
-│       ├── client/                    # AiClient interface + GeminiApiClient
-│       ├── sanitizer/                 # SensitiveDataSanitizer — strips secrets before any AI call
-│       ├── service/, prompt/, model/  # Phase 2: AI failure & root-cause analysis
-│       ├── locatoradvisor/            # Phase 5/6: offline + live-runtime locator advisor
-│       ├── diagnosis/                 # Phase 7: FailureDiagnosisHelper — the QA entry point
-│       ├── agent/                     # Phase 8: agentic QA foundation (propose-only, non-executing)
-│       ├── codegeneration/            # Phase 4: AI-assisted Playwright code generation (advisory)
-│       └── testgeneration/            # Phase 3: AI test case/data generation (advisory)
+├── mvnw / mvnw.cmd                         # Maven Wrapper
+├── .github/workflows/regression.yml        # CI workflow
+├── src/main/java/com/framework/
+│   ├── api/                                # API client, responses, and assertions
+│   ├── ai/                                 # Opt-in analysis, locator, and agent foundation
+│   ├── base/                               # Shared page abstractions
+│   ├── config/                             # Environment/configuration loading
+│   ├── driver/                             # Playwright lifecycle and thread-local state
+│   ├── listeners/                          # TestNG listeners and retry support
+│   └── utils/                              # JSON, waits, dates, Excel, and DB helpers
 ├── src/test/java/com/tests/
-│   ├── base/                          # BaseTest, BaseWebTest, BaseApiTest
-│   ├── pages/                         # Page Objects (LoginPage, InventoryPage, ...)
-│   ├── models/                        # Request/response POJOs with builder pattern
-│   ├── dataproviders/                 # TestNG @DataProvider (JSON/CSV backed)
-│   ├── web/                           # Web UI test classes
-│   ├── api/                           # API test classes
-│   └── ai/                            # Test suite for the AI layer (660+ tests)
-├── src/test/resources/
-│   ├── config/{qa,staging,prod}.properties
-│   ├── testdata/                      # JSON / CSV test data
-│   ├── schemas/                       # JSON schema files for response validation
-│   ├── log4j2.xml
-│   └── {smoke,regression,api}-suite.xml
-└── .github/workflows/regression.yml
+│   ├── api/                                # API scenarios
+│   ├── ai/                                 # AI safety and analysis tests
+│   ├── base/                               # Base web/API test classes
+│   ├── dataproviders/                      # TestNG data providers
+│   ├── mobile/                             # Appium mobile scenarios
+│   ├── models/                             # Request/response models
+│   ├── pages/                              # Page Objects
+│   └── web/                                # Web UI scenarios
+└── src/test/resources/
+    ├── config/                             # qa, staging, preprod, and prod properties
+    ├── schemas/                            # JSON schemas
+    ├── testdata/                           # JSON and CSV data
+    ├── *-suite.xml                         # TestNG suites
+    └── log4j2.xml                          # Logging configuration
 ```
 
-## 2. Prerequisites
+## Prerequisites
 
-- Java 17+
-- Maven 3.9+
-- (First run only) Playwright browser binaries — see below
+- Java **25** (the Maven compiler is configured with `<release>25</release>`).
+- Maven 3.9+ or the included Maven Wrapper.
+- Playwright browser binaries.
+- For native mobile tests only: Appium server, Android/iOS tooling, and a device or emulator with the application installed.
+- For database-backed tests: PostgreSQL access and the required connection settings.
 
-## 3. First-time setup
+> **CI compatibility note:** `.github/workflows/regression.yml` currently provisions JDK 17, while `pom.xml` targets Java 25. Update the workflow to a Java 25 runner (or lower the Maven compiler release after confirming project compatibility) before relying on CI execution.
+
+## Getting started
 
 ```bash
-git clone <your-repo-url>
-cd automation-framework
-mvn -B exec:java@install-browsers
+git clone https://github.com/Mcube333/Playwright-Furlenco.git
+cd Playwright-Furlenco
+
+# Install Playwright Chromium/Firefox/WebKit binaries and Linux dependencies
+./mvnw -B exec:java@install-browsers
+
+# Windows
+mvnw.cmd -B exec:java@install-browsers
 ```
 
-This installs Chromium/Firefox/WebKit binaries Playwright needs. Re-run it whenever you bump the
-`playwright.version` in `pom.xml`.
+The browser installation command should be repeated when `playwright.version` changes.
 
-## 4. Running tests locally
+## Configuration and secrets
 
-Environment defaults to `qa` if `-Denv` is omitted.
+The active environment defaults to `qa` and is selected with `-Denv`:
 
 ```bash
-# Smoke suite (fast, both Web + API)
-mvn test -DsuiteXmlFile=src/test/resources/smoke-suite.xml -Denv=qa
-
-# Full regression suite
-mvn test -DsuiteXmlFile=src/test/resources/regression-suite.xml -Denv=qa
-
-# API-only suite (no browser spin-up at all)
-mvn test -DsuiteXmlFile=src/test/resources/api-suite.xml -Denv=qa
-
-# Against staging
-mvn test -DsuiteXmlFile=src/test/resources/regression-suite.xml -Denv=staging
+./mvnw test -Denv=staging -DsuiteXmlFile=src/test/resources/regression-suite.xml
 ```
 
-Run a specific TestNG group only (e.g. just negative scenarios):
+Environment files are under `src/test/resources/config/`. Do not put credentials or tokens in these files. Supply secrets through environment variables or CI secrets, including values such as:
+
+```text
+API_TOKEN
+DB_HOST
+DB_PORT
+DB_NAME
+DB_USER
+DB_PASSWORD
+```
+
+The configuration loader is designed to support runtime overrides, so CI and local runs can use the same suite definitions without changing source files.
+
+## Running tests
+
+Maven defaults to `src/test/resources/regression-suite.xml` and `qa` when no suite or environment is supplied.
 
 ```bash
-mvn test -DsuiteXmlFile=src/test/resources/regression-suite.xml -Dgroups=negative
+# Smoke: smoke-tagged web and API tests
+./mvnw test -Denv=qa -DsuiteXmlFile=src/test/resources/smoke-suite.xml
+
+# Full regression
+./mvnw test -Denv=qa -DsuiteXmlFile=src/test/resources/regression-suite.xml
+
+# API-only suite
+./mvnw test -Denv=qa -DsuiteXmlFile=src/test/resources/api-suite.xml
+
+# Select a TestNG group
+./mvnw test -Dgroups=negative
+
+# Run one test class
+./mvnw test -Dtest=SauceDemoLoginTest
 ```
 
-Run a single test class:
+Available suite files also include the Furlenco-specific suites under `src/test/resources/` and `mobile-suite.xml`. The native mobile suite is intentionally not an executable mobile test run yet: its scenarios are disabled pending verified application/device prerequisites.
+
+Use TestNG groups consistently, for example `smoke`, `regression`, `web`, `api`, `negative`, and `payment-critical`. Groups control suite selection and the CI payment-critical failure gate.
+
+## Allure reports and logs
+
+Serve a local interactive report after a test run:
 
 ```bash
-mvn test -Dtest=SauceDemoLoginTest
+./mvnw io.qameta.allure:allure-maven:serve
 ```
 
-## 5. Viewing the Allure report
+Or generate the static report without opening a browser:
 
 ```bash
-mvn io.qameta.allure:allure-maven:serve
+./mvnw io.qameta.allure:allure-maven:report
 ```
 
-This builds and opens the HTML report in your browser. For CI, the report is generated headlessly
-and published as a build artifact (see `.github/workflows/regression.yml`).
+Test output is written beneath `target/`; Log4j2 output is written to `logs/` when enabled by the logging configuration.
 
-## 6. How CI works
+## CI workflow
 
-`.github/workflows/regression.yml` runs on push/PR to `main`, and also supports manual dispatch
-where you pick the target environment (qa/staging/prod) and suite file. Secrets (`API_TOKEN`,
-`DB_*`) are injected via GitHub encoded secrets — never committed to `.properties` files.
+`.github/workflows/regression.yml` runs on pushes and pull requests targeting `main`, and can also be started manually. Manual runs expose these inputs:
 
-The pipeline does **not** hard-fail on every regression failure — it publishes the Allure report
-and logs regardless, then fails the job specifically if any test tagged `payment-critical` failed.
-Non-critical failures stay visible in the report for triage without blocking every PR.
+- `environment`: `qa`, `staging`, or `prod`.
+- `suite`: `smoke-suite.xml`, `regression-suite.xml`, or `api-suite.xml`.
 
-## 7. Adding a new test (for a new team member)
+The workflow:
 
-1. **Web test**: create a Page Object under `src/test/java/com/tests/pages/` extending `BasePage`,
-   using only `click`/`fill`/`getText`/`waitForVisible` — no raw Playwright locators in test classes.
-   Then create a test class under `src/test/java/com/tests/web/` extending `BaseWebTest`.
-2. **API test**: create a test class under `src/test/java/com/tests/api/` extending `BaseApiTest`.
-   Use `apiClient.get/post/put/patch/delete(...)` and assert via `ApiAssertions`.
-3. Tag the test with the right TestNG `groups` (`smoke`, `regression`, `api`, `web`,
-   `payment-critical`, `negative`) — this drives both suite inclusion and the CI fail-gate.
-4. If the test needs structured request/response payloads, add a POJO under `models/` using the
-   builder pattern (see `User.java`, `PaymentRequest.java`) instead of raw JSON strings.
-5. If the test needs data-driven inputs, add JSON/CSV under `testdata/` and wire a
-   `@DataProvider` method in `TestDataProvider.java`.
-6. Never use `Thread.sleep`. Use Playwright's auto-waiting, `BasePage`'s explicit waits, or
-   `WaitUtils.pollUntil(...)` for backend/async state polling.
+1. Checks out the repository and caches Maven dependencies.
+2. Installs Playwright browsers.
+3. Runs the selected TestNG suite.
+4. Generates and uploads the Allure report.
+5. Uploads test logs.
+6. Blocks the job when a `payment-critical` test fails, while preserving reports for other failures.
 
-## 8. AI-assisted QA layer (additive, explicit, opt-in — everything below is OFF by default)
+Configure `API_TOKEN` and `DB_*` values as GitHub Actions secrets rather than committing them to the repository.
 
-Built on top of the framework above without changing any existing test execution behavior.
-Nothing in this layer runs automatically; every capability is a separate, explicitly-invoked Java
-class that a QA engineer chooses to call. It is entirely disabled out of the box:
+## Framework conventions
+
+### Web tests
+
+1. Add or update a Page Object under `src/test/java/com/tests/pages/`.
+2. Extend `BasePage` and keep locator/action details in the Page Object.
+3. Add the scenario under `src/test/java/com/tests/web/` and extend the appropriate base test.
+4. Prefer Playwright auto-waiting and shared wait helpers; do not use `Thread.sleep`.
+
+### API tests
+
+1. Add the scenario under `src/test/java/com/tests/api/`.
+2. Extend `BaseApiTest`.
+3. Use the shared API client and `ApiAssertions`.
+4. Use request/response models under `models/` for structured payloads.
+5. Add JSON Schema assertions where an endpoint contract must be protected.
+
+### Data and database validation
+
+Put reusable JSON/CSV/Excel inputs in `src/test/resources/testdata/` and expose them through TestNG data providers. Use the shared polling utilities for asynchronous backend state and `DBUtils` for database checks; never hard-code credentials or rely on arbitrary sleeps.
+
+## AI-assisted QA layer
+
+The AI layer is **disabled by default** and is designed as a safety-conscious extension rather than a replacement for deterministic test evidence. It includes:
+
+- Failure classification and root-cause suggestions through the configured `AiClient` provider.
+- Offline and optional live locator candidate analysis.
+- Failure diagnosis reports attached to Allure.
+- An observe → reason → propose agent foundation.
+- Human approval records for recommendations; approval does not execute or modify anything.
+- Sensitive-data sanitization before provider calls and reports.
+
+Typical feature flags remain off unless explicitly enabled:
 
 ```properties
 ai.enabled=false
@@ -150,73 +214,20 @@ ai.agent.browser.mutation.enabled=false
 ai.agent.max.actions=0
 ```
 
-**What exists, roughly bottom-up:**
+AI output is advisory. Deterministic DOM/runtime checks define evidence status, and no current configuration enables automatic browser mutation, source changes, or self-healing execution. See `src/test/java/com/tests/ai/` for safety, prompt-injection, and fail-closed coverage.
 
-- **AI failure analysis** (`com.framework.ai.service.FailureAnalysisService`) — when both
-  `ai.enabled` and `ai.failure.analysis.enabled` are `true`, `TestListener` asks the configured AI
-  provider (Gemini by default, via `AiClient`) to classify a failure and suggest a root cause. This
-  is the *only* AI call that runs automatically; everything else below must be invoked explicitly.
-- **Locator Advisor** (`com.framework.ai.locatoradvisor`) — offline, DOM-matched locator candidate
-  analysis plus, if `ai.locator.runtime.validation.enabled=true`, live validation against a real
-  Playwright `Page`. The AI proposes candidates; a deterministic matcher independently verifies
-  each one — an AI suggestion is never trusted as evidence by itself.
-- **Failure Diagnosis** (`com.framework.ai.diagnosis.FailureDiagnosisHelper`) — the QA-facing entry
-  point that combines the above into one Markdown/Allure report:
+## Current limitations and extension points
 
-  ```java
-  FailureDiagnosisHelper helper = new FailureDiagnosisHelper();
-  FailureDiagnosis diagnosis = helper.diagnose(testResult);
-  helper.report(diagnosis); // attaches the report to Allure
-  ```
+- **Java/CI version alignment:** the project targets Java 25 but CI currently installs Java 17; align these before using the workflow as a release gate.
+- **Native mobile execution:** Appium dependencies and suites are present, but verified locators, an APK/app build, and device/emulator access are still required.
+- **Payment lifecycle coverage:** add gateway timeout, webhook delay, idempotency, retry, and database reconciliation scenarios under a dedicated payment package.
+- **Contract governance:** make JSON Schema checks a required CI gate for endpoints consumed by mobile or other downstream clients.
+- **Production safeguards:** use environment protection rules and carefully scoped secrets before enabling production suite execution.
 
-- **Agentic QA foundation** (`com.framework.ai.agent`) — an observe → reason → propose pipeline
-  that can recommend a fix (e.g. "this locator looks stale, try this instead") but cannot act on
-  it. `AgentExecutionGuard` is a fail-closed permission boundary: no configuration combination
-  makes an action executable today — there is no action executor. `SelfHealingRecommendationService`
-  output is for human review only; nothing is applied automatically.
-- **Explicit recommendation & human-approval workflow** (`com.framework.ai.orchestration`) — sits
-  on top of the agentic foundation and is just as explicit: `AgentOrchestrationService`/
-  `AgentRecommendationConsumer` compose the observe → reason → propose pipeline into one call, and
-  `AgentApprovalService`/`AgentApprovalRecordStore`/`AgentApprovalSummaryReporter` let a human
-  record and query a `PENDING`/`APPROVED`/`REJECTED` decision about each recommendation. An
-  `APPROVED` record is a decision record only — it is never executed, never bypasses
-  `AgentExecutionGuard`, and never applies anything to source, a Page Object, or a live page.
+## Contributing
 
-  ```java
-  FailureDiagnosis diagnosis = new FailureDiagnosisHelper().diagnose(testResult);
+Keep framework code in `src/main/java`, test-specific code in `src/test/java`, and test assets in `src/test/resources`. Run the smallest relevant suite locally, review the Allure report, avoid committed secrets, and format Java changes with the configured Spotless Maven plugin.
 
-  AgentRecommendationConsumer consumer = new AgentRecommendationConsumer(new AgentOrchestrationService());
-  List<SelfHealingRecommendation> recommendations = consumer.consume(diagnosis);
+## License
 
-  AgentApprovalService approvals = new AgentApprovalService();
-  AgentApprovalRecord decision = approvals.approve(recommendations.get(0), "Verified on staging.", "qa.jane");
-
-  AgentApprovalRecordStore store = new AgentApprovalRecordStore();
-  store.add(decision);
-
-  System.out.println(new AgentApprovalSummaryReporter(store).summarize());
-  ```
-
-  See `FurlencoApprovalWorkflowSampleTest` (in `src/test/java/com/tests/ai/orchestration/`) for a
-  full, runnable walkthrough of this chain against a realistic Furlenco cart-button locator drift.
-
-Every evidence status (`VERIFIED` / `INFERRED` / `UNVERIFIED` / `MISSING`) comes from a
-deterministic check (DOM matching, a live Playwright read), never from AI confidence or wording —
-an AI saying "this is definitely correct" never upgrades evidence. Sensitive values
-(`authorization`, `cookie`, `session`, `token`, `password`, etc.) are stripped by the shared
-`SensitiveDataSanitizer` before anything reaches an AI provider or a report.
-
-See `src/test/java/com/tests/ai/` for the full test suite covering this layer, including
-adversarial/prompt-injection and fail-closed safety validation.
-
-## 9. Known gaps / next steps to extend this framework for your domain
-
-- **Payment/Retry/Webhook module**: add a dedicated `com.tests.api.payment` package with tests for
-  gateway timeout simulation, webhook delay tolerance (`WaitUtils.pollUntil` on payment status),
-  duplicate-payment idempotency, and retry-after-success reconciliation via `DBUtils`.
-- **Mobile (Android/iOS/MWeb)**: Playwright covers Web + Mobile Web (via device emulation in
-  `BrowserContext`) but not native Android/iOS — that needs Appium as a separate module if native
-  app coverage is required.
-- **Contract/schema drift**: consider wiring `assertMatchesSchema` checks into the CI pipeline
-  as a required gate for any endpoint your mobile apps depend on, so backend changes that break
-  the contract fail fast in CI rather than surfacing as a mobile app crash.
+No license file is currently present in the repository. Add an explicit license before distributing or reusing this framework outside the project.
