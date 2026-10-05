@@ -23,6 +23,10 @@
             <class name="com.tests.web.furlenco.FurlencoCartVasTest"/>
             <class name="com.tests.web.furlenco.FurlencoCartCouponTest"/>
             <class name="com.tests.web.furlenco.FurlencoCartEmptyStateTest"/>
+            <class name="com.tests.web.furlenco.FurlencoCitySelectorTest"/>
+            <class name="com.tests.web.furlenco.FurlencoMyOrdersTest"/>
+            <class name="com.tests.web.furlenco.FurlencoCheckoutAddressTest"/>
+            <class name="com.tests.web.furlenco.FurlencoPdpLayoutTest"/>
         </classes>
     </test>
 

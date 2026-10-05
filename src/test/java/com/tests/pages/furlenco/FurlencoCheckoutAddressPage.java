@@ -41,6 +41,17 @@ public class FurlencoCheckoutAddressPage extends BasePage {
         return page.locator(SAVED_ADDRESS_RADIO).count() > 0;
     }
 
+    @Step("Check if a saved address is pre-selected")
+    public boolean isAnyAddressSelected() {
+        Locator radios = page.locator(SAVED_ADDRESS_RADIO);
+        for (int i = 0; i < radios.count(); i++) {
+            if (radios.nth(i).isChecked()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Step("Check if the Add New Address action is available")
     public boolean isAddNewAddressAvailable() {
         Locator btn = page.locator(ADD_NEW_ADDRESS_BUTTON);

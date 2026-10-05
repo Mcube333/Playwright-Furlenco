@@ -100,7 +100,12 @@ public class FurlencoHomePage extends BasePage {
         LOGGER.info("Selecting city: {}", cityName);
         openCityModal();
         Locator drawer = page.locator(LOCATION_DRAWER).first();
-        Locator cityOption = drawer.locator(String.format("p:has-text('%s'), div:has-text('%s')", cityName, cityName)).last();
+        // City tiles are <button>s (verified live) — prefer an exact-text button; the broader
+        // text match is kept as a fallback for any city rendered differently.
+        Locator exactButton = drawer.locator("button").filter(new Locator.FilterOptions().setHasText(java.util.regex.Pattern.compile("^\\s*" + java.util.regex.Pattern.quote(cityName) + "\\s*$")));
+        Locator cityOption = exactButton.count() > 0
+                ? exactButton.first()
+                : drawer.locator(String.format("p:has-text('%s'), div:has-text('%s')", cityName, cityName)).last();
         cityOption.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE));
         cityOption.click(new Locator.ClickOptions().setForce(true));
         page.waitForTimeout(1000);
@@ -123,6 +128,38 @@ public class FurlencoHomePage extends BasePage {
         pincodeInput.press("Enter");
         page.waitForTimeout(1500);
         return this;
+    }
+
+    /**
+     * Inline validation text shown inside the location drawer after a bad pincode — verified live:
+     * "Invalid Pincode Entered" for malformed input (e.g. 123, 000000) and "Pincode is not
+     * serviceable" for a well-formed but unserviced one (e.g. 999999). Empty string when none.
+     */
+    @Step("Get location drawer pincode error message")
+    public String getPincodeErrorMessage() {
+        Locator error = page.locator(LOCATION_DRAWER).first()
+                .locator(":text-matches(\"Invalid Pincode Entered|not serviceable\", \"i\")");
+        return error.count() > 0 ? error.first().textContent().trim() : "";
+    }
+
+    @Step("Get the pincode shown as 'Currently selected pincode' in the location drawer")
+    public String getCurrentlySelectedPincode() {
+        Locator drawer = page.locator(LOCATION_DRAWER).first();
+        String text = drawer.innerText();
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("Currently selected pincode:\\s*(\\d+)").matcher(text);
+        return m.find() ? m.group(1) : "";
+    }
+
+    @Step("Check if the location drawer is open")
+    public boolean isLocationDrawerOpen() {
+        Locator drawer = page.locator(LOCATION_DRAWER);
+        return drawer.count() > 0 && drawer.first().isVisible();
+    }
+
+    /** Header location label, e.g. {@code "Bengaluru 560001"} (city followed by pincode). */
+    @Step("Get header location text")
+    public String getHeaderLocationText() {
+        return page.locator("header").first().innerText().trim();
     }
 
     @Step("Search for product: {query}")
