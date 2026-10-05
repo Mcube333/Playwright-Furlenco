@@ -56,6 +56,22 @@ public class FurlencoMyOrdersPage extends BasePage {
         return page.locator(ORDER_CARD).count();
     }
 
+    @Step("Get the href of the first order card")
+    public String getFirstOrderHref() {
+        Locator card = page.locator(ORDER_CARD).first();
+        card.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE));
+        return card.getAttribute("href");
+    }
+
+    @Step("Open the first order's details")
+    public FurlencoMyOrdersPage openFirstOrder() {
+        LOGGER.info("Opening first order details");
+        page.locator(ORDER_CARD).first().click();
+        page.waitForLoadState();
+        page.waitForTimeout(1000);
+        return this;
+    }
+
     @Step("Open the first Buy order's details")
     public FurlencoMyOrdersPage openFirstBuyOrder() {
         LOGGER.info("Opening first Buy order details");

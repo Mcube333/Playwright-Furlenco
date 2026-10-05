@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["success", "data"],
+  "properties": {
+    "success": { "type": "boolean" },
+    "data": {
+      "type": "object",
+      "required": ["bundleBreakageDryRun"],
+      "properties": {
+        "bundleBreakageDryRun": {
+          "type": "object",
+          "required": ["bundles"],
+          "properties": {
+            "bundles": { "type": "array" }
+          }
+        }
+      }
+    }
+  }
+}
